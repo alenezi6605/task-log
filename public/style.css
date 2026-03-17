@@ -15,6 +15,7 @@
   --purple:      #b84fff;
   --pink:        #ff4fa0;
   --amber:       #ffb300;
+  --gold:        #f59e0b;
   --green:       #00e676;
   --red:         #ff3d4a;
 
@@ -22,9 +23,10 @@
   --in_progress-color: var(--cyan);
   --done-color:        var(--green);
 
-  --aurore-color: var(--purple);
-  --judy-color:   var(--pink);
-  --v-color:      var(--cyan);
+  --aurore-color:      var(--purple);
+  --judy-color:        var(--pink);
+  --v-color:           var(--cyan);
+  --abdulrahman-color: var(--gold);
 
   --font: 'Courier New', Courier, monospace;
   --radius: 4px;
@@ -67,6 +69,45 @@ header {
   font-size: 11px;
   color: var(--text-dim);
   letter-spacing: 2px;
+}
+
+/* ── Tab Switcher ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  padding: 8px 18px 10px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+  color: var(--text-bright);
+}
+
+.tab-btn.active {
+  color: var(--cyan);
+  border-bottom-color: var(--cyan);
+}
+
+.tab-btn.tab-my-tasks.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
 }
 
 /* ── Main layout ── */
@@ -180,11 +221,12 @@ main {
   text-transform: uppercase;
 }
 
-.badge-aurore { background: rgba(184, 79, 255, 0.15); color: var(--aurore-color); border: 1px solid rgba(184, 79, 255, 0.3); }
-.badge-judy   { background: rgba(255, 79, 160, 0.15); color: var(--judy-color);   border: 1px solid rgba(255, 79, 160, 0.3); }
-.badge-v      { background: rgba(0, 240, 255, 0.12);  color: var(--v-color);      border: 1px solid rgba(0, 240, 255, 0.3); }
-.badge-tbd    { background: rgba(90, 90, 114, 0.2);   color: var(--text-dim);     border: 1px solid rgba(90, 90, 114, 0.3); }
-.badge-other  { background: rgba(255, 179, 0, 0.12);  color: var(--amber);        border: 1px solid rgba(255, 179, 0, 0.3); }
+.badge-aurore       { background: rgba(184, 79, 255, 0.15);  color: var(--aurore-color);      border: 1px solid rgba(184, 79, 255, 0.3); }
+.badge-judy         { background: rgba(255, 79, 160, 0.15);  color: var(--judy-color);        border: 1px solid rgba(255, 79, 160, 0.3); }
+.badge-v            { background: rgba(0, 240, 255, 0.12);   color: var(--v-color);           border: 1px solid rgba(0, 240, 255, 0.3); }
+.badge-abdulrahman  { background: rgba(245, 158, 11, 0.15);  color: var(--abdulrahman-color); border: 1px solid rgba(245, 158, 11, 0.35); }
+.badge-tbd          { background: rgba(90, 90, 114, 0.2);    color: var(--text-dim);          border: 1px solid rgba(90, 90, 114, 0.3); }
+.badge-other        { background: rgba(255, 179, 0, 0.12);   color: var(--amber);             border: 1px solid rgba(255, 179, 0, 0.3); }
 
 .card-desc {
   font-size: 12px;

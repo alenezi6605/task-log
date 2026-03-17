@@ -1,12 +1,17 @@
 const API = '/api/tasks';
 
+// 'crew' = V, Aurore, Judy | 'my' = Abdulrahman
+let activeTab = 'crew';
+let allTasks = [];
+
 function assigneeBadgeClass(assignee) {
   if (!assignee) return 'badge-tbd';
   const a = assignee.trim().toLowerCase();
-  if (a === 'aurore') return 'badge-aurore';
-  if (a === 'judy')   return 'badge-judy';
-  if (a === 'v')      return 'badge-v';
-  if (a === 'tbd')    return 'badge-tbd';
+  if (a === 'aurore')       return 'badge-aurore';
+  if (a === 'judy')         return 'badge-judy';
+  if (a === 'v')            return 'badge-v';
+  if (a === 'abdulrahman')  return 'badge-abdulrahman';
+  if (a === 'tbd')          return 'badge-tbd';
   return 'badge-other';
 }
 
@@ -40,9 +45,6 @@ function buildCard(task) {
 
   const badgeClass = assigneeBadgeClass(task.assigned_to);
   const assigneeLabel = task.assigned_to || 'TBD';
-  const descTruncated = (task.description || '').length > 0
-    ? task.description
-    : '<em style="opacity:0.4">No description</em>';
 
   div.innerHTML = `
     <div class="card-top">
@@ -103,34 +105,60 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function filterTasksForTab(tasks, tab) {
+  if (tab === 'my') {
+    return tasks.filter(t => t.assigned_to && t.assigned_to.trim().toLowerCase() === 'abdulrahman');
+  }
+  // crew tab: everyone except Abdulrahman
+  return tasks.filter(t => {
+    if (!t.assigned_to) return true;
+    return t.assigned_to.trim().toLowerCase() !== 'abdulrahman';
+  });
+}
+
+function renderBoard(tasks) {
+  const groups = { pending: [], in_progress: [], done: [] };
+  for (const t of tasks) {
+    if (groups[t.status]) groups[t.status].push(t);
+  }
+
+  for (const status of ['pending', 'in_progress', 'done']) {
+    const list = document.getElementById(`list-${status}`);
+    const count = document.getElementById(`count-${status}`);
+    list.innerHTML = '';
+    count.textContent = groups[status].length;
+
+    if (groups[status].length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = '// NO TASKS //';
+      list.appendChild(empty);
+    } else {
+      for (const task of groups[status]) {
+        list.appendChild(buildCard(task));
+      }
+    }
+  }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  document.getElementById('tab-crew').classList.toggle('active', tab === 'crew');
+  document.getElementById('tab-my').classList.toggle('active', tab === 'my');
+
+  renderBoard(filterTasksForTab(allTasks, activeTab));
+}
+
+// expose globally for onclick attributes
+window.switchTab = switchTab;
+
 async function loadTasks() {
   try {
     const res = await fetch(API);
     if (!res.ok) throw new Error('Failed to fetch tasks');
-    const tasks = await res.json();
-
-    const groups = { pending: [], in_progress: [], done: [] };
-    for (const t of tasks) {
-      if (groups[t.status]) groups[t.status].push(t);
-    }
-
-    for (const status of ['pending', 'in_progress', 'done']) {
-      const list = document.getElementById(`list-${status}`);
-      const count = document.getElementById(`count-${status}`);
-      list.innerHTML = '';
-      count.textContent = groups[status].length;
-
-      if (groups[status].length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.textContent = '// NO TASKS //';
-        list.appendChild(empty);
-      } else {
-        for (const task of groups[status]) {
-          list.appendChild(buildCard(task));
-        }
-      }
-    }
+    allTasks = await res.json();
+    renderBoard(filterTasksForTab(allTasks, activeTab));
   } catch (err) {
     console.error('Error loading tasks:', err);
   }
