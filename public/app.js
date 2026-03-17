@@ -109,6 +109,9 @@ function filterTasksForTab(tasks, tab) {
   if (tab === 'my') {
     return tasks.filter(t => t.assigned_to && t.assigned_to.trim().toLowerCase() === 'abdulrahman');
   }
+  if (tab === 'all') {
+    return tasks;
+  }
   // crew tab: everyone except Abdulrahman
   return tasks.filter(t => {
     if (!t.assigned_to) return true;
@@ -146,6 +149,7 @@ function switchTab(tab) {
 
   document.getElementById('tab-crew').classList.toggle('active', tab === 'crew');
   document.getElementById('tab-my').classList.toggle('active', tab === 'my');
+  document.getElementById('tab-all').classList.toggle('active', tab === 'all');
 
   renderBoard(filterTasksForTab(allTasks, activeTab));
 }
