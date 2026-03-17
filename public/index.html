@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Log // V's Crew</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="header-title">TASK LOG</span>
+      <span class="header-sub">V's Crew // Night City Ops</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="columns">
+      <div class="column" id="col-pending">
+        <div class="col-header">
+          <span class="col-dot dot-pending"></span>
+          <span class="col-label">PENDING</span>
+          <span class="col-count" id="count-pending">0</span>
+        </div>
+        <div class="card-list" id="list-pending"></div>
+      </div>
+
+      <div class="column" id="col-in_progress">
+        <div class="col-header">
+          <span class="col-dot dot-in_progress"></span>
+          <span class="col-label">IN PROGRESS</span>
+          <span class="col-count" id="count-in_progress">0</span>
+        </div>
+        <div class="card-list" id="list-in_progress"></div>
+      </div>
+
+      <div class="column" id="col-done">
+        <div class="col-header">
+          <span class="col-dot dot-done"></span>
+          <span class="col-label">DONE</span>
+          <span class="col-count" id="count-done">0</span>
+        </div>
+        <div class="card-list" id="list-done"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="modal-close">&times;</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
