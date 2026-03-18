@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,43 +9,64 @@
 <body>
   <header>
     <div class="header-inner">
-      <span class="header-title">TASK LOG</span>
-      <span class="header-sub">V's Crew // Ops</span>
+      <div class="header-brand">
+        <span class="header-title">TASK LOG</span>
+        <span class="header-sub">V's Crew // Ops</span>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+        <span class="theme-icon" id="theme-icon">◑</span>
+      </button>
     </div>
   </header>
 
   <div class="tab-bar">
-    <button class="tab-btn tab-crew-tasks active" id="tab-crew" onclick="switchTab('crew')">Crew Tasks</button>
-    <button class="tab-btn tab-my-tasks" id="tab-my" onclick="switchTab('my')">My Tasks</button>
+    <button class="tab-btn tab-all active" id="tab-all" onclick="switchTab('all')">All Tasks</button>
+    <button class="tab-btn tab-crew" id="tab-crew" onclick="switchTab('crew')">Crew Tasks</button>
+    <button class="tab-btn tab-my" id="tab-my" onclick="switchTab('my')">My Tasks</button>
+    <button class="tab-btn tab-agents" id="tab-agents" onclick="switchTab('agents')">Agents</button>
+    <button class="tab-btn tab-org" id="tab-org" onclick="switchTab('org')">Org Tree</button>
   </div>
 
   <main>
-    <div class="columns" id="kanban-board">
-      <div class="column" id="col-pending">
-        <div class="col-header">
-          <span class="col-dot dot-pending"></span>
-          <span class="col-label">PENDING</span>
-          <span class="col-count" id="count-pending">0</span>
+    <!-- Kanban view (all, crew, my) -->
+    <div id="view-kanban">
+      <div class="columns" id="kanban-board">
+        <div class="column" id="col-pending">
+          <div class="col-header">
+            <span class="col-dot dot-pending"></span>
+            <span class="col-label">PENDING</span>
+            <span class="col-count" id="count-pending">0</span>
+          </div>
+          <div class="card-list" id="list-pending"></div>
         </div>
-        <div class="card-list" id="list-pending"></div>
+        <div class="column" id="col-in_progress">
+          <div class="col-header">
+            <span class="col-dot dot-in_progress"></span>
+            <span class="col-label">IN PROGRESS</span>
+            <span class="col-count" id="count-in_progress">0</span>
+          </div>
+          <div class="card-list" id="list-in_progress"></div>
+        </div>
+        <div class="column" id="col-done">
+          <div class="col-header">
+            <span class="col-dot dot-done"></span>
+            <span class="col-label">DONE</span>
+            <span class="col-count" id="count-done">0</span>
+          </div>
+          <div class="card-list" id="list-done"></div>
+        </div>
       </div>
+    </div>
 
-      <div class="column" id="col-in_progress">
-        <div class="col-header">
-          <span class="col-dot dot-in_progress"></span>
-          <span class="col-label">IN PROGRESS</span>
-          <span class="col-count" id="count-in_progress">0</span>
-        </div>
-        <div class="card-list" id="list-in_progress"></div>
-      </div>
+    <!-- Agents view -->
+    <div id="view-agents" class="hidden">
+      <div class="agents-grid" id="agents-grid"></div>
+    </div>
 
-      <div class="column" id="col-done">
-        <div class="col-header">
-          <span class="col-dot dot-done"></span>
-          <span class="col-label">DONE</span>
-          <span class="col-count" id="count-done">0</span>
-        </div>
-        <div class="card-list" id="list-done"></div>
+    <!-- Org Tree view -->
+    <div id="view-org" class="hidden">
+      <div class="org-container">
+        <div class="org-tree" id="org-tree"></div>
       </div>
     </div>
   </main>

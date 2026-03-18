@@ -7,7 +7,9 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const tasksRouter = require('./routes/tasks');
+const agentsRouter = require('./routes/agents');
 app.use('/api/tasks', tasksRouter);
+app.use('/api/agents', agentsRouter);
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
