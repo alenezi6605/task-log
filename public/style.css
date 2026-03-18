@@ -175,6 +175,9 @@ header {
   border-bottom: 1px solid var(--border);
   background: var(--bg-tab);
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  flex-wrap: nowrap;
   transition: background var(--transition), border-color var(--transition);
 }
 
@@ -195,6 +198,8 @@ header {
   transition: color var(--transition), border-color var(--transition);
   margin-bottom: -1px;
   white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-block;
 }
 
 .tab-btn:hover { color: var(--text-bright); }
