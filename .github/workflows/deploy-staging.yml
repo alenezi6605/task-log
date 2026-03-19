@@ -1,0 +1,70 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 Staging (port 3002)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/task-log-staging || (git clone https://github.com/alenezi6605/task-log.git /home/ubuntu/task-log-staging && cd /home/ubuntu/task-log-staging)
+            cd /home/ubuntu/task-log-staging
+            git fetch origin staging
+            git reset --hard origin/staging
+            docker build -t task-log-staging .
+            docker stop task-log-staging 2>/dev/null || true
+            docker rm task-log-staging 2>/dev/null || true
+            docker volume create task-log-staging-data 2>/dev/null || true
+            docker run -d \
+              --name task-log-staging \
+              --restart unless-stopped \
+              -p 3002:3001 \
+              -v task-log-staging-data:/data \
+              -e NODE_ENV=staging \
+              task-log-staging
+            echo "Staging deployment complete — http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):3002"
+
+      - name: Post-deploy smoke tests (staging)
+        run: |
+          echo "Running smoke tests against staging at http://${{ secrets.EC2_HOST }}:3002"
+          sleep 15
+
+          BASE="http://${{ secrets.EC2_HOST }}:3002"
+          PASS=0
+          FAIL=0
+
+          check() {
+            local name="$1" url="$2" expected="$3"
+            local got
+            got=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+            if [ "$got" = "$expected" ]; then
+              echo "PASS [$got] $name"
+              PASS=$((PASS+1))
+            else
+              echo "FAIL [$got] $name (expected $expected)"
+              FAIL=$((FAIL+1))
+            fi
+          }
+
+          check "Staging homepage" "$BASE/" 200
+          check "Staging /api/config" "$BASE/api/config" 200
+          check "Staging /health" "$BASE/health" 200
+          check "Staging /api/tasks" "$BASE/api/tasks" 200
+          check "Staging /api/agents" "$BASE/api/agents" 200
+
+          echo ""
+          echo "Staging smoke: $PASS passed, $FAIL failed"
+          [ "$FAIL" -eq 0 ] || exit 1
