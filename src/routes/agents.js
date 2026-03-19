@@ -45,7 +45,7 @@ router.get('/:id', (req, res) => {
 // POST /api/agents — create agent
 router.post('/', (req, res) => {
   try {
-    const { name, designation, reports_to, status, model } = req.body;
+    const { name, designation, reports_to, status, model, avatar_url } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     if (!designation) return res.status(400).json({ error: 'designation is required' });
     if (model && !VALID_MODELS.includes(model)) {
@@ -53,14 +53,15 @@ router.post('/', (req, res) => {
     }
 
     const stmt = db.prepare(
-      'INSERT INTO agents (name, designation, reports_to, status, model) VALUES (?, ?, ?, ?, ?)'
+      'INSERT INTO agents (name, designation, reports_to, status, model, avatar_url) VALUES (?, ?, ?, ?, ?, ?)'
     );
     const result = stmt.run(
       name,
       designation,
       reports_to || null,
       status || 'active',
-      model || 'claude-sonnet-4-6'
+      model || 'claude-sonnet-4-6',
+      avatar_url || null
     );
     const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(agent);
@@ -78,7 +79,7 @@ router.put('/:id', (req, res) => {
     const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.id);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    const { name, designation, reports_to, status, model, current_activity, last_active, tagline, bio, philosophy, demands, hates } = req.body;
+    const { name, designation, reports_to, status, model, current_activity, last_active, tagline, bio, philosophy, demands, hates, avatar_url } = req.body;
 
     if (model && !VALID_MODELS.includes(model)) {
       return res.status(400).json({ error: `model must be one of: ${VALID_MODELS.join(', ')}` });
@@ -97,6 +98,7 @@ router.put('/:id', (req, res) => {
       philosophy: philosophy !== undefined ? philosophy : agent.philosophy,
       demands: demands !== undefined ? demands : agent.demands,
       hates: hates !== undefined ? hates : agent.hates,
+      avatar_url: avatar_url !== undefined ? avatar_url : agent.avatar_url,
     };
 
     db.prepare(`
@@ -112,13 +114,15 @@ router.put('/:id', (req, res) => {
         bio = ?,
         philosophy = ?,
         demands = ?,
-        hates = ?
+        hates = ?,
+        avatar_url = ?
       WHERE id = ?
     `).run(
       updated.name, updated.designation, updated.reports_to,
       updated.status, updated.model, updated.current_activity,
       updated.last_active, updated.tagline, updated.bio,
       updated.philosophy, updated.demands, updated.hates,
+      updated.avatar_url,
       req.params.id
     );
 
