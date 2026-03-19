@@ -121,17 +121,32 @@ function engStatusLabel(status) {
   return { backlog: 'Backlog', in_progress: 'In Progress', review: 'In Review', done: 'Done' }[status] || status;
 }
 
+/* ── UTC+3 (Kuwait) offset helper ── */
+function toUTC3(dt) {
+  if (!dt) return null;
+  const d = new Date(dt);
+  // Shift by +3 hours: add 3 * 60 * 60 * 1000 ms
+  return new Date(d.getTime() + 3 * 60 * 60 * 1000);
+}
+
 function formatDate(dt) {
   if (!dt) return '—';
-  const d = new Date(dt);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const d = toUTC3(dt);
+  // Format using UTC methods so the +3 shift is rendered as-is
+  const day   = String(d.getUTCDate()).padStart(2, '0');
+  const month = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()];
+  const year  = d.getUTCFullYear();
+  const hh    = String(d.getUTCHours()).padStart(2, '0');
+  const mm    = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} ${hh}:${mm}`;
 }
 
 function formatTime(dt) {
   if (!dt) return '';
-  const d = new Date(dt);
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const d = toUTC3(dt);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
 }
 
 function timeAgo(dt) {
@@ -199,7 +214,13 @@ window.toggleSidebar = toggleSidebar;
 function updateClock() {
   const el = document.getElementById('dashboard-time');
   if (el) {
-    el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const now = new Date();
+    // Display in UTC+3 (Kuwait time)
+    const utc3 = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const hh = String(utc3.getUTCHours()).padStart(2, '0');
+    const mm = String(utc3.getUTCMinutes()).padStart(2, '0');
+    const ss = String(utc3.getUTCSeconds()).padStart(2, '0');
+    el.textContent = `${hh}:${mm}:${ss}`;
   }
 }
 
