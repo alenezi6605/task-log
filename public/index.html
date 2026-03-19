@@ -256,7 +256,17 @@
 
   </div>
 
-  <!-- Task detail modal -->
+  <!-- Slide-over panel (task / eng task detail) -->
+  <div class="slideover-overlay" id="slideover-overlay" onclick="closeSlideover()"></div>
+  <div class="slideover" id="slideover">
+    <div class="slideover-header">
+      <div class="slideover-title" id="slideover-title">Task Detail</div>
+      <button class="slideover-close" id="slideover-close" onclick="closeSlideover()">&times;</button>
+    </div>
+    <div class="slideover-body" id="slideover-body"></div>
+  </div>
+
+  <!-- Task detail modal (kept for agent profile — profile uses modal) -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal" id="modal">
       <button class="modal-close" id="modal-close">&times;</button>
