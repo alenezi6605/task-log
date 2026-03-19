@@ -287,19 +287,33 @@ body {
 .sidebar-toggle {
   display: none;
   position: fixed;
-  top: 14px;
-  left: 14px;
-  z-index: 100;
+  top: 10px;
+  left: 12px;
+  z-index: 101;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 18px;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   cursor: pointer;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Sidebar overlay (mobile backdrop) ── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 49;
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.visible {
+  display: block;
 }
 
 /* ── Main Wrap ── */
@@ -766,7 +780,7 @@ body {
 /* ── Agents Grid ── */
 .agents-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
   gap: 16px;
 }
 
@@ -1778,23 +1792,89 @@ body {
   .section { padding: 16px; }
 }
 
+/* ── Mobile breakpoint (768px) ── */
 @media (max-width: 768px) {
+  /* Sidebar — off-canvas */
   .sidebar {
     transform: translateX(-100%);
   }
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
   }
+
+  /* Main content — full width with topbar offset */
   .main-wrap {
     margin-left: 0;
+    padding-top: 58px; /* space for the floating sidebar toggle */
   }
+
+  /* Show sidebar toggle */
   .sidebar-toggle {
     display: flex;
   }
+
+  /* Stat grid — 2 columns */
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Section padding */
+  .section { padding: 16px 14px 32px; }
+  .section-header { margin-bottom: 16px; }
+
+  /* Modal — more space on small screens */
+  .modal {
+    padding: 20px 18px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Chat wrap height — account for mobile topbar */
+  .chat-wrap {
+    height: calc(100vh - 220px);
+  }
+
+  /* Profile header — stack on narrow */
+  .profile-header { flex-wrap: wrap; }
+
+  /* Kanban columns — single column */
+  .kanban-board { grid-template-columns: 1fr; }
+  .eng-kanban   { grid-template-columns: 1fr; }
 }
 
+/* ── Small mobile (480px) ── */
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .agents-grid { grid-template-columns: 1fr; }
+
+  /* Section padding tighter */
+  .section { padding: 12px 10px 24px; }
+
+  /* Profile two-col collapses */
+  .profile-two-col { grid-template-columns: 1fr; }
+
+  /* Modal padding tighter */
+  .modal { padding: 16px 14px; }
+
+  /* Eng priority badge — smaller */
+  .eng-priority-badge { font-size: 8px; padding: 2px 5px; }
+
+  /* Model select — ensure tappable */
+  .model-select { font-size: 12px; padding: 6px 8px; min-height: 34px; }
+
+  /* Chat bubbles — less padding */
+  .chat-messages { padding: 10px; }
+
+  /* Room card padding */
+  .room-card { padding: 12px 14px; }
+
+  /* Section header wrap */
+  .section-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+/* ── Extra small (360px) ── */
+@media (max-width: 360px) {
+  .agents-grid { grid-template-columns: 1fr; }
+  .stat-grid   { grid-template-columns: 1fr 1fr; }
+  .section { padding: 10px 8px 20px; }
+  .brand-title { font-size: 12px; letter-spacing: 3px; }
 }
