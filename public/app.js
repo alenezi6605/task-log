@@ -409,37 +409,124 @@ function buildCard(task) {
   return div;
 }
 
-/* ── Modal ── */
+/* ── Task detail slide-over ── */
 function openModal(task) {
-  const overlay = document.getElementById('modal-overlay');
-  const content = document.getElementById('modal-content');
   const badgeClass = assigneeBadgeClass(task.assigned_to);
   const assigneeLabel = task.assigned_to || 'TBD';
 
-  content.innerHTML = `
-    <div class="modal-title">${escHtml(task.title)}</div>
-    <div class="modal-meta">
+  const bodyHtml = `
+    <div class="slideover-meta">
       <span class="badge ${badgeClass}">${escHtml(assigneeLabel)}</span>
       <span class="status-badge status-${task.status}">${statusLabel(task.status)}</span>
     </div>
-    <div class="modal-desc">${escHtml(task.description || 'No description provided.')}</div>
-    <div class="modal-times">
+    ${task.description ? `
+      <div class="slideover-section">
+        <div class="slideover-label">Description</div>
+        <div class="slideover-desc">${escHtml(task.description)}</div>
+      </div>
+    ` : `<div class="slideover-desc" style="color:var(--text-dim);font-style:italic">No description provided.</div>`}
+    <div class="slideover-times">
       <span>Created: ${formatDate(task.created_at)}</span>
       <span>Updated: ${formatDate(task.updated_at)}</span>
       <span>ID: #${task.id}</span>
     </div>
   `;
-  overlay.classList.remove('hidden');
+  openSlideover(task.title, bodyHtml);
 }
 
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal-overlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeModal();
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+// Escape key handled by unified listener below (closes both modal and slideover)
 
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
+}
+
+/* ── Slide-over panel ── */
+function openSlideover(titleText, bodyHtml) {
+  const overlay = document.getElementById('slideover-overlay');
+  const panel = document.getElementById('slideover');
+  const title = document.getElementById('slideover-title');
+  const body = document.getElementById('slideover-body');
+
+  title.textContent = titleText;
+  body.innerHTML = bodyHtml;
+  overlay.classList.add('visible');
+  panel.classList.add('open');
+
+  // Prevent body scroll on mobile when slideover is open
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSlideover() {
+  const overlay = document.getElementById('slideover-overlay');
+  const panel = document.getElementById('slideover');
+  overlay.classList.remove('visible');
+  panel.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+window.closeSlideover = closeSlideover;
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeSlideover();
+    closeModal();
+  }
+});
+
+/* ── Skeleton builders ── */
+function buildKanbanSkeleton(cols) {
+  return cols.map(() => `
+    <div class="kanban-col">
+      <div class="col-header">
+        <span class="col-dot skeleton" style="border-radius:50%;display:inline-block"></span>
+        <span class="skeleton skeleton-line" style="width:80px"></span>
+        <span class="skeleton skeleton-badge" style="margin-left:auto;width:24px"></span>
+      </div>
+      <div class="card-list">
+        ${[1,2,3].map(() => `
+          <div class="skeleton-card">
+            <div class="skeleton skeleton-line-lg skeleton-w-3-4"></div>
+            <div class="skeleton skeleton-line skeleton-w-full"></div>
+            <div class="skeleton skeleton-line-sm skeleton-w-1-2"></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function buildAgentsSkeleton() {
+  return [1,2,3,4,5,6].map(() => `
+    <div class="skeleton-card agent-card">
+      <div style="display:flex;gap:12px;margin-bottom:14px">
+        <div class="skeleton skeleton-avatar"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding-top:4px">
+          <div class="skeleton skeleton-line-lg skeleton-w-1-2"></div>
+          <div class="skeleton skeleton-line-sm skeleton-w-1-3"></div>
+          <div class="skeleton skeleton-line-sm skeleton-w-3-4"></div>
+        </div>
+        <div class="skeleton skeleton-badge"></div>
+      </div>
+      <div class="skeleton skeleton-line-sm skeleton-w-full" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px"></div>
+    </div>
+  `).join('');
+}
+
+function buildDashboardSkeleton() {
+  return `
+    <div class="stat-grid">
+      ${[1,2,3,4].map(() => `
+        <div class="stat-card skeleton-card">
+          <div class="skeleton skeleton-line-lg skeleton-w-1-2" style="margin-bottom:8px"></div>
+          <div class="skeleton skeleton-line-sm skeleton-w-3-4"></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 /* ── Agent Profile Modal ── */
@@ -961,27 +1048,28 @@ function buildEngCard(task) {
 }
 
 function openEngTaskModal(task) {
-  const overlay = document.getElementById('modal-overlay');
-  const content = document.getElementById('modal-content');
-
   const priorityClasses = { critical: 'priority-critical', high: 'priority-high', medium: 'priority-medium', low: 'priority-low' };
   const priorityClass = priorityClasses[task.priority] || 'priority-medium';
 
-  content.innerHTML = `
-    <div class="modal-title">${escHtml(task.title)}</div>
-    <div class="modal-meta">
+  const bodyHtml = `
+    <div class="slideover-meta">
       ${task.assigned_to ? `<span class="badge ${assigneeBadgeClass(task.assigned_to)}">${escHtml(task.assigned_to)}</span>` : ''}
       <span class="eng-priority-badge ${priorityClass}">${escHtml(task.priority)}</span>
       <span class="status-badge status-${task.status === 'backlog' ? 'pending' : task.status === 'review' ? 'in_progress' : task.status}">${engStatusLabel(task.status)}</span>
     </div>
-    <div class="modal-desc">${escHtml(task.description || 'No description provided.')}</div>
-    <div class="modal-times">
+    ${task.description ? `
+      <div class="slideover-section">
+        <div class="slideover-label">Description</div>
+        <div class="slideover-desc">${escHtml(task.description)}</div>
+      </div>
+    ` : `<div class="slideover-desc" style="color:var(--text-dim);font-style:italic">No description provided.</div>`}
+    <div class="slideover-times">
       <span>Created: ${formatDate(task.created_at)}</span>
       <span>Updated: ${formatDate(task.updated_at)}</span>
       <span>ID: #${task.id}</span>
     </div>
   `;
-  overlay.classList.remove('hidden');
+  openSlideover(task.title, bodyHtml);
 }
 
 /* ── SSE connection ── */
@@ -1202,6 +1290,21 @@ async function loadEngTasks() {
 }
 
 async function loadAll() {
+  // Show loading skeletons while data loads
+  const kanbanBoard = document.getElementById('kanban-board');
+  const engBoard = document.getElementById('eng-kanban-board');
+  const agentsGrid = document.getElementById('agents-grid');
+
+  if (kanbanBoard && !allTasks.length) {
+    kanbanBoard.innerHTML = buildKanbanSkeleton([1,2,3]);
+  }
+  if (engBoard && !allEngTasks.length) {
+    engBoard.innerHTML = buildKanbanSkeleton([1,2,3,4]);
+  }
+  if (agentsGrid && !allAgents.length) {
+    agentsGrid.innerHTML = buildAgentsSkeleton();
+  }
+
   await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
   renderDashboard();
 }
