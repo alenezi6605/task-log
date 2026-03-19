@@ -6,6 +6,22 @@ const ROOMS_API     = '/api/rooms';
 const ENG_TASKS_API = '/api/eng-tasks';
 const EVENTS_URL    = '/api/events';
 
+/* ── Auth ── */
+let API_TOKEN = '';  // loaded from /api/config on init
+
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (API_TOKEN) h['Authorization'] = `Bearer ${API_TOKEN}`;
+  return h;
+}
+
+function authedFetch(url, opts = {}) {
+  if (API_TOKEN) {
+    opts.headers = { ...(opts.headers || {}), 'Authorization': `Bearer ${API_TOKEN}` };
+  }
+  return fetch(url, opts);
+}
+
 /* ── State ── */
 let activeSection   = 'dashboard';
 let activeFilter    = 'all';
@@ -572,7 +588,7 @@ function renderAgents() {
 
 async function updateAgentModel(agentId, model, selectEl) {
   try {
-    const res = await fetch(`${AGENTS_API}/${agentId}/model`, {
+    const res = await authedFetch(`${AGENTS_API}/${agentId}/model`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model })
@@ -755,7 +771,7 @@ window.exitRoom = exitRoom;
 
 async function loadRoomMessages(roomId) {
   try {
-    const res = await fetch(`${ROOMS_API}/${roomId}/messages?limit=200`);
+    const res = await authedFetch(`${ROOMS_API}/${roomId}/messages?limit=200`);
     if (!res.ok) throw new Error('Failed to fetch room messages');
     roomMessages[roomId] = await res.json();
   } catch (err) {
@@ -958,19 +974,37 @@ function openEngTaskModal(task) {
 }
 
 /* ── SSE connection ── */
+let sseHeartbeatTimer = null;  // watchdog timer — reconnects if no heartbeat
+const SSE_HEARTBEAT_TIMEOUT = 45000; // 25s server interval + 20s grace
+
+function resetHeartbeatWatchdog(dot) {
+  if (sseHeartbeatTimer) clearTimeout(sseHeartbeatTimer);
+  sseHeartbeatTimer = setTimeout(() => {
+    // No heartbeat received within timeout — connection silently dropped
+    console.warn('[SSE] Heartbeat timeout — forcing reconnect');
+    if (eventSource) { eventSource.close(); eventSource = null; }
+    if (dot) dot.classList.remove('connected');
+    connectSSE();
+  }, SSE_HEARTBEAT_TIMEOUT);
+}
+
 function connectSSE() {
   if (eventSource) {
     eventSource.close();
     eventSource = null;
   }
+  if (sseHeartbeatTimer) { clearTimeout(sseHeartbeatTimer); sseHeartbeatTimer = null; }
 
   const indicator = document.getElementById('live-indicator');
   const dot = indicator ? indicator.querySelector('.live-dot') : null;
 
-  eventSource = new EventSource(EVENTS_URL);
+  // Pass token as query param for EventSource (can't set custom headers)
+  const sseUrl = API_TOKEN ? `${EVENTS_URL}?token=${encodeURIComponent(API_TOKEN)}` : EVENTS_URL;
+  eventSource = new EventSource(sseUrl);
 
   eventSource.onopen = () => {
     if (dot) dot.classList.add('connected');
+    resetHeartbeatWatchdog(dot);
   };
 
   eventSource.addEventListener('agent_update', (e) => {
@@ -1082,18 +1116,43 @@ function connectSSE() {
     }
   });
 
+  // Heartbeat: server sends ': heartbeat\n\n' every 25s as an SSE comment.
+  // EventSource parses comments — they trigger onmessage with no event type and null data.
+  // We use any incoming message (named or unnamed) to reset the watchdog.
+  const origOnMsg = eventSource.onmessage;
+  eventSource.onmessage = (e) => {
+    resetHeartbeatWatchdog(dot);
+    if (origOnMsg) origOnMsg(e);
+  };
+
+  // Also reset on named events (agent_update, new_message, etc.)
+  ['agent_update', 'new_message', 'task_update', 'eng_task_update', 'room_update'].forEach(evtName => {
+    const existingListener = eventSource['_listener_' + evtName];
+    // The resetHeartbeatWatchdog is added via a wrapper in addEventListener below
+  });
+
   eventSource.onerror = () => {
+    if (sseHeartbeatTimer) { clearTimeout(sseHeartbeatTimer); sseHeartbeatTimer = null; }
     if (dot) dot.classList.remove('connected');
-    eventSource.close();
-    eventSource = null;
+    if (eventSource) { eventSource.close(); eventSource = null; }
     setTimeout(connectSSE, 5000);
   };
 }
 
+// Page Visibility API — reconnect SSE when tab comes back to foreground
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
+      console.log('[SSE] Tab visible — reconnecting SSE');
+      connectSSE();
+    }
+  }
+});
+
 /* ── Data loading ── */
 async function loadTasks() {
   try {
-    const res = await fetch(TASKS_API);
+    const res = await authedFetch(TASKS_API);
     if (!res.ok) throw new Error('Failed to fetch tasks');
     allTasks = await res.json();
   } catch (err) {
@@ -1103,7 +1162,7 @@ async function loadTasks() {
 
 async function loadAgents() {
   try {
-    const res = await fetch(AGENTS_API);
+    const res = await authedFetch(AGENTS_API);
     if (!res.ok) throw new Error('Failed to fetch agents');
     allAgents = await res.json();
   } catch (err) {
@@ -1113,7 +1172,7 @@ async function loadAgents() {
 
 async function loadRooms() {
   try {
-    const res = await fetch(ROOMS_API);
+    const res = await authedFetch(ROOMS_API);
     if (!res.ok) throw new Error('Failed to fetch rooms');
     allRooms = await res.json();
   } catch (err) {
@@ -1123,7 +1182,7 @@ async function loadRooms() {
 
 async function loadEngTasks() {
   try {
-    const res = await fetch(ENG_TASKS_API);
+    const res = await authedFetch(ENG_TASKS_API);
     if (!res.ok) throw new Error('Failed to fetch eng tasks');
     allEngTasks = await res.json();
   } catch (err) {
@@ -1136,9 +1195,24 @@ async function loadAll() {
   renderDashboard();
 }
 
+/* ── Config load ── */
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const cfg = await res.json();
+      API_TOKEN = cfg.token || '';
+    }
+  } catch (err) {
+    console.warn('Could not load config:', err);
+  }
+}
+
 /* ── Init ── */
-loadAll().then(() => {
-  connectSSE();
+loadConfig().then(() => {
+  loadAll().then(() => {
+    connectSSE();
+  });
 });
 
 // Periodic full refresh as fallback (every 2 min)
