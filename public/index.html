@@ -46,6 +46,12 @@
           <span class="nav-badge" id="msg-badge" style="display:none">0</span>
         </button>
       </li>
+      <li>
+        <button class="nav-item" data-section="eng-tasks" onclick="switchSection('eng-tasks')">
+          <span class="nav-icon">&#9881;</span>
+          <span class="nav-label">Eng Tasks</span>
+        </button>
+      </li>
     </ul>
     <div class="sidebar-footer">
       <div class="live-indicator" id="live-indicator">
@@ -172,18 +178,76 @@
       </div>
     </section>
 
-    <!-- Section: Meeting Room -->
+    <!-- Section: Meeting Room — Room List -->
     <section class="section hidden" id="section-meeting">
-      <div class="section-header">
+      <div class="section-header" id="meeting-list-header">
         <h1 class="section-title">Meeting Room</h1>
-        <span class="section-sub">#general</span>
+        <span class="section-sub">All Rooms</span>
       </div>
-      <div class="chat-wrap">
-        <div class="chat-messages" id="chat-messages">
-          <div class="empty-state">// NO MESSAGES YET //</div>
+
+      <!-- Room list view -->
+      <div id="meeting-room-list">
+        <div class="room-list" id="room-list">
+          <div class="empty-state">// LOADING ROOMS //</div>
         </div>
-        <div class="chat-observer-notice">
-          Observer mode — read only
+      </div>
+
+      <!-- Room chat view (hidden by default) -->
+      <div id="meeting-room-chat" class="hidden">
+        <div class="room-chat-header">
+          <button class="room-back-btn" onclick="exitRoom()">&#8592; Rooms</button>
+          <div class="room-chat-title" id="room-chat-title">Room</div>
+          <span class="room-status-badge" id="room-chat-status-badge"></span>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-messages" id="chat-messages">
+            <div class="empty-state">// NO MESSAGES YET //</div>
+          </div>
+          <div class="chat-observer-notice">
+            Observer mode — read only
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Eng Tasks Board -->
+    <section class="section hidden" id="section-eng-tasks">
+      <div class="section-header">
+        <h1 class="section-title">Eng Tasks</h1>
+        <span class="section-sub">Team Board</span>
+      </div>
+      <div class="kanban-board eng-kanban" id="eng-kanban-board">
+        <div class="kanban-col" id="eng-col-backlog">
+          <div class="col-header">
+            <span class="col-dot dot-backlog"></span>
+            <span class="col-label">BACKLOG</span>
+            <span class="col-count" id="eng-count-backlog">0</span>
+          </div>
+          <div class="card-list" id="eng-list-backlog"></div>
+        </div>
+        <div class="kanban-col" id="eng-col-in_progress">
+          <div class="col-header">
+            <span class="col-dot dot-in_progress"></span>
+            <span class="col-label">IN PROGRESS</span>
+            <span class="col-count" id="eng-count-in_progress">0</span>
+          </div>
+          <div class="card-list" id="eng-list-in_progress"></div>
+        </div>
+        <div class="kanban-col" id="eng-col-review">
+          <div class="col-header">
+            <span class="col-dot dot-review"></span>
+            <span class="col-label">IN REVIEW</span>
+            <span class="col-count" id="eng-count-review">0</span>
+          </div>
+          <div class="card-list" id="eng-list-review"></div>
+        </div>
+        <div class="kanban-col" id="eng-col-done">
+          <div class="col-header">
+            <span class="col-dot dot-done"></span>
+            <span class="col-label">DONE</span>
+            <span class="col-count" id="eng-count-done">0</span>
+          </div>
+          <div class="card-list" id="eng-list-done"></div>
         </div>
       </div>
     </section>

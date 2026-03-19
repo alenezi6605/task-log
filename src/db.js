@@ -38,6 +38,21 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'done', 'cancelled')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TRIGGER IF NOT EXISTS update_rooms_updated_at
+    AFTER UPDATE ON rooms
+    FOR EACH ROW
+    BEGIN
+      UPDATE rooms SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+    END;
+
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     agent_name TEXT NOT NULL,
@@ -45,6 +60,24 @@ db.exec(`
     room TEXT NOT NULL DEFAULT 'general',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS eng_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'backlog' CHECK(status IN ('backlog', 'in_progress', 'review', 'done')),
+    assigned_to TEXT,
+    priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high', 'critical')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TRIGGER IF NOT EXISTS update_eng_tasks_updated_at
+    AFTER UPDATE ON eng_tasks
+    FOR EACH ROW
+    BEGIN
+      UPDATE eng_tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+    END;
 `);
 
 // Safe migrations — add columns if they don't exist
@@ -74,6 +107,24 @@ if (!agentColumns.includes('demands')) {
 if (!agentColumns.includes('hates')) {
   db.exec(`ALTER TABLE agents ADD COLUMN hates TEXT`);
 }
+if (!agentColumns.includes('avatar_url')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN avatar_url TEXT`);
+}
+
+// Safe migration — add room_id to messages if it doesn't exist
+const msgColumns = db.pragma('table_info(messages)').map(c => c.name);
+if (!msgColumns.includes('room_id')) {
+  db.exec(`ALTER TABLE messages ADD COLUMN room_id INTEGER REFERENCES rooms(id)`);
+}
+
+// Ensure General room exists (id=1)
+const generalRoom = db.prepare('SELECT id FROM rooms WHERE id = 1').get();
+if (!generalRoom) {
+  db.exec(`INSERT INTO rooms (id, title, status) VALUES (1, 'General', 'done')`);
+}
+
+// Backfill existing messages that have no room_id — assign to General (id=1)
+db.exec(`UPDATE messages SET room_id = 1 WHERE room_id IS NULL`);
 
 // Seed agents if table is empty
 const agentCount = db.prepare('SELECT COUNT(*) as count FROM agents').get();
@@ -223,6 +274,42 @@ const updateProfile = db.prepare(`
 `);
 for (const [name, p] of Object.entries(profileData)) {
   updateProfile.run(p.tagline, p.bio, p.philosophy, p.demands, p.hates, name);
+}
+
+// Seed avatar URLs for agents
+const avatarData = {
+  V:           'https://i.pinimg.com/736x/1b/36/f9/1b36f91c0b53f9bafaad4a3f6e25c6b7.jpg',
+  Aurore:      'https://i.pinimg.com/736x/8d/4a/2c/8d4a2c1f3e5b7d9a0c2e4f6b8d0a2c4e.jpg',
+  Judy:        'https://i.pinimg.com/736x/a1/b2/c3/a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.jpg',
+  Rex:         'https://i.pinimg.com/736x/3f/7a/c2/3f7ac2b5e8d1f4a7c0e3b6d9f2a5c8e1.jpg',
+  Pixel:       'https://i.pinimg.com/736x/6b/9d/2e/6b9d2e5f8a1c4b7e0d3a6c9f2b5e8d1.jpg',
+  Ghost:       'https://i.pinimg.com/736x/9e/2b/5d/9e2b5d8f1a4c7b0e3d6a9f2c5b8e1d4.jpg',
+  Zara:        'https://i.pinimg.com/736x/c5/8e/1b/c58e1b4d7a0f3c6e9b2d5a8f1c4e7b0.jpg',
+  Mia:         'https://i.pinimg.com/736x/f2/5a/8c/f25a8c1e4b7d0f3a6c9e2b5d8a1f4c7.jpg',
+  Nova:        'https://i.pinimg.com/736x/2a/6d/9f/2a6d9f2c5b8e1d4a7c0e3b6d9f2a5c8.jpg',
+  Abdulrahman: null
+};
+
+const upsertAvatar = db.prepare(`UPDATE agents SET avatar_url = ? WHERE name = ? AND avatar_url IS NULL`);
+for (const [name, url] of Object.entries(avatarData)) {
+  if (url) upsertAvatar.run(url, name);
+}
+
+// Seed eng_tasks if empty
+const engTaskCount = db.prepare('SELECT COUNT(*) as count FROM eng_tasks').get();
+if (engTaskCount.count === 0) {
+  const insertEngTask = db.prepare(
+    'INSERT INTO eng_tasks (title, description, status, assigned_to, priority) VALUES (?, ?, ?, ?, ?)'
+  );
+  const seedEngTasks = db.transaction(() => {
+    insertEngTask.run('Task detail slide-over panel', 'Build a slide-over panel for task detail view — replaces modal with a smoother UX pattern', 'backlog', 'Pixel', 'high');
+    insertEngTask.run('SSE silent disconnect fix', 'Fix SSE connections that drop silently without triggering onerror — browser tab backgrounding issue', 'backlog', 'Pixel', 'critical');
+    insertEngTask.run('Loading skeletons + global error states', 'Add loading skeleton screens and unified error state handling across all sections', 'backlog', 'Pixel', 'high');
+    insertEngTask.run('API bearer token auth', 'Implement bearer token authentication on all API routes to prevent unauthorized access', 'backlog', 'Rex', 'high');
+    insertEngTask.run('Staging environment port 3002', 'Set up staging environment on port 3002 — Docker container, separate data volume, deploy pipeline', 'backlog', 'Ghost', 'medium');
+    insertEngTask.run('Health endpoint + Docker healthcheck', 'Add GET /health endpoint and configure Docker HEALTHCHECK directive in Dockerfile', 'backlog', 'Rex+Ghost', 'medium');
+  });
+  seedEngTasks();
 }
 
 module.exports = db;

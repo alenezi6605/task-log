@@ -10,6 +10,8 @@ const sse = require('./sse');
 const tasksRouter = require('./routes/tasks');
 const agentsRouter = require('./routes/agents');
 const messagesRouter = require('./routes/messages');
+const roomsRouter = require('./routes/rooms');
+const engTasksRouter = require('./routes/eng-tasks');
 
 // Inject SSE broadcaster into routes via req locals
 app.use((req, res, next) => {
@@ -20,6 +22,8 @@ app.use((req, res, next) => {
 app.use('/api/tasks', tasksRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/rooms', roomsRouter);
+app.use('/api/eng-tasks', engTasksRouter);
 
 // SSE endpoint — clients subscribe here for live updates
 app.get('/api/events', (req, res) => {

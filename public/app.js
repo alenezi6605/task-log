@@ -1,18 +1,24 @@
 /* ── Constants ── */
-const TASKS_API    = '/api/tasks';
-const AGENTS_API   = '/api/agents';
-const MESSAGES_API = '/api/messages';
-const EVENTS_URL   = '/api/events';
+const TASKS_API     = '/api/tasks';
+const AGENTS_API    = '/api/agents';
+const MESSAGES_API  = '/api/messages';
+const ROOMS_API     = '/api/rooms';
+const ENG_TASKS_API = '/api/eng-tasks';
+const EVENTS_URL    = '/api/events';
 
 /* ── State ── */
-let activeSection  = 'dashboard';
-let activeFilter   = 'all';
-let allTasks       = [];
-let allAgents      = [];
-let allMessages    = [];
-let unreadMessages = 0;
-let eventSource    = null;
-let activityLog    = []; // { text, status, time }
+let activeSection   = 'dashboard';
+let activeFilter    = 'all';
+let allTasks        = [];
+let allAgents       = [];
+let allMessages     = [];
+let allRooms        = [];
+let allEngTasks     = [];
+let unreadMessages  = 0;
+let eventSource     = null;
+let activityLog     = []; // { text, status, time }
+let activeRoomId    = null; // currently viewed room
+let roomMessages    = {}; // roomId -> array of messages
 
 /* ── Theme ── */
 (function initTheme() {
@@ -67,6 +73,36 @@ function getAgentInitial(name) {
   return c ? c.initial : (name || '?').charAt(0).toUpperCase();
 }
 
+/* ── Get avatar URL for agent by name ── */
+function getAgentAvatarUrl(name) {
+  if (!name) return null;
+  const agent = allAgents.find(a => a.name.toLowerCase() === name.trim().toLowerCase());
+  return agent ? agent.avatar_url : null;
+}
+
+/* ── Build avatar element (img or initials circle) ── */
+function buildAvatarEl(name, sizeClass) {
+  const avatarUrl = getAgentAvatarUrl(name);
+  const el = document.createElement('div');
+  el.className = `chat-msg-avatar ${sizeClass || ''}`;
+  applyAgentColorVars(el, name);
+
+  if (avatarUrl) {
+    const img = document.createElement('img');
+    img.src = avatarUrl;
+    img.alt = name;
+    img.className = 'avatar-img';
+    img.onerror = () => {
+      img.remove();
+      el.textContent = getAgentInitial(name);
+    };
+    el.appendChild(img);
+  } else {
+    el.textContent = getAgentInitial(name);
+  }
+  return el;
+}
+
 /* ── Helpers ── */
 function assigneeBadgeClass(assignee) {
   if (!assignee) return 'badge-tbd';
@@ -81,11 +117,21 @@ function statusLabel(status) {
   return { pending: 'Pending', in_progress: 'In Progress', done: 'Done' }[status] || status;
 }
 
+function engStatusLabel(status) {
+  return { backlog: 'Backlog', in_progress: 'In Progress', review: 'In Review', done: 'Done' }[status] || status;
+}
+
 function formatDate(dt) {
   if (!dt) return '—';
   const d = new Date(dt);
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
     + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatTime(dt) {
+  if (!dt) return '';
+  const d = new Date(dt);
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 function timeAgo(dt) {
@@ -102,7 +148,7 @@ function timeAgo(dt) {
 
 function isRecentlyActive(last_active) {
   if (!last_active) return false;
-  return (Date.now() - new Date(last_active).getTime()) < 5 * 60 * 1000; // 5 min
+  return (Date.now() - new Date(last_active).getTime()) < 5 * 60 * 1000;
 }
 
 function escHtml(str) {
@@ -117,30 +163,26 @@ function escHtml(str) {
 function switchSection(section) {
   activeSection = section;
 
-  // Update nav items
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.section === section);
   });
 
-  // Hide all sections
   document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
 
-  // Show target
   const target = document.getElementById(`section-${section}`);
   if (target) target.classList.remove('hidden');
 
-  // Render on switch
-  if (section === 'dashboard')  renderDashboard();
-  if (section === 'tasks')      renderBoard(filterTasks(allTasks, activeFilter));
-  if (section === 'agents')     renderAgents();
-  if (section === 'org')        buildOrgTree(allAgents);
+  if (section === 'dashboard')   renderDashboard();
+  if (section === 'tasks')       renderBoard(filterTasks(allTasks, activeFilter));
+  if (section === 'agents')      renderAgents();
+  if (section === 'org')         buildOrgTree(allAgents);
   if (section === 'meeting') {
     unreadMessages = 0;
     updateMsgBadge();
-    scrollChatToBottom();
+    renderRoomList();
   }
+  if (section === 'eng-tasks')   renderEngBoard();
 
-  // Close mobile sidebar
   document.getElementById('sidebar').classList.remove('open');
 }
 
@@ -166,7 +208,6 @@ updateClock();
 
 /* ── Dashboard rendering ── */
 function renderDashboard() {
-  // Stats
   const active = allAgents.filter(a => a.status === 'active').length;
   const pending = allTasks.filter(t => t.status === 'pending').length;
   const inProgress = allTasks.filter(t => t.status === 'in_progress').length;
@@ -198,11 +239,19 @@ function renderWhosWorking() {
     item.className = 'working-item';
     applyAgentColorVars(item, agent.name);
 
+    const avatarUrl = agent.avatar_url;
     const initial = getAgentInitial(agent.name);
     const activity = agent.current_activity || 'Standby';
 
+    let avatarHtml;
+    if (avatarUrl) {
+      avatarHtml = `<div class="working-avatar"><img src="${escHtml(avatarUrl)}" alt="${escHtml(agent.name)}" class="avatar-img" onerror="this.parentElement.textContent='${escHtml(initial)}'"/></div>`;
+    } else {
+      avatarHtml = `<div class="working-avatar">${escHtml(initial)}</div>`;
+    }
+
     item.innerHTML = `
-      <div class="working-avatar">${escHtml(initial)}</div>
+      ${avatarHtml}
       <div class="working-info">
         <div class="working-name">
           ${escHtml(agent.name)}
@@ -374,10 +423,14 @@ function openAgentProfile(agent) {
       `).join('')
     : '<div class="profile-empty">// NO ACTIVE TASKS //</div>';
 
+  const avatarHtml = agent.avatar_url
+    ? `<img src="${escHtml(agent.avatar_url)}" alt="${escHtml(agent.name)}" class="avatar-img" onerror="this.parentElement.innerHTML='${escHtml(initial)}'"/>`
+    : escHtml(initial);
+
   content.innerHTML = `
     <div class="profile-modal" style="--agent-accent:${accent};--agent-accent-bg:${accentBg};--agent-accent-border:${accentBorder}">
       <div class="profile-header">
-        <div class="profile-avatar">${escHtml(initial)}</div>
+        <div class="profile-avatar">${avatarHtml}</div>
         <div class="profile-header-info">
           <div class="profile-name">${escHtml(agent.name)}</div>
           <div class="profile-designation">${escHtml(agent.designation)}</div>
@@ -458,10 +511,14 @@ function renderAgents() {
       `<option value="${m}" ${m === model ? 'selected' : ''}>${m}</option>`
     ).join('');
 
+    const avatarInnerHtml = agent.avatar_url
+      ? `<img src="${escHtml(agent.avatar_url)}" alt="${escHtml(agent.name)}" class="avatar-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span class="avatar-fallback" style="display:none">${escHtml(initial)}</span>`
+      : escHtml(initial);
+
     card.innerHTML = `
       <div class="agent-card-top">
         <div class="agent-avatar">
-          ${escHtml(initial)}
+          ${avatarInnerHtml}
           ${live ? '<div class="agent-live-ring"></div>' : ''}
         </div>
         <div class="agent-info">
@@ -501,11 +558,9 @@ async function updateAgentModel(agentId, model, selectEl) {
     });
     if (!res.ok) throw new Error('Failed to update model');
 
-    // Update local state
     const agent = allAgents.find(a => a.id === agentId);
     if (agent) agent.model = model;
 
-    // Flash feedback
     const flash = document.getElementById(`model-flash-${agentId}`);
     if (flash) {
       flash.classList.add('show');
@@ -547,9 +602,12 @@ function buildOrgTree(agents) {
     applyAgentColorVars(node, agent.name);
 
     const initial = getAgentInitial(agent.name);
+    const avatarInner = agent.avatar_url
+      ? `<img src="${escHtml(agent.avatar_url)}" alt="${escHtml(agent.name)}" class="avatar-img" onerror="this.style.display='none';this.insertAdjacentText('afterend','${escHtml(initial)}')"/>`
+      : escHtml(initial);
 
     node.innerHTML = `
-      <div class="org-node-avatar">${escHtml(initial)}</div>
+      <div class="org-node-avatar">${avatarInner}</div>
       <div class="org-node-name">${escHtml(agent.name)}</div>
       <div class="org-node-role">${escHtml(agent.designation)}</div>
     `;
@@ -592,55 +650,190 @@ function buildOrgTree(agents) {
   for (const root of roots) renderNode(root, tree);
 }
 
-/* ── Meeting Room ── */
-function renderMessages() {
-  const container = document.getElementById('chat-messages');
+/* ── Meeting Rooms — Room List ── */
+function renderRoomList() {
+  // Ensure we're showing list view, not chat view
+  const listEl = document.getElementById('meeting-room-list');
+  const chatEl = document.getElementById('meeting-room-chat');
+  if (listEl) listEl.classList.remove('hidden');
+  if (chatEl) chatEl.classList.add('hidden');
+  activeRoomId = null;
 
-  if (!allMessages.length) {
+  const container = document.getElementById('room-list');
+  if (!container) return;
+
+  if (!allRooms.length) {
+    container.innerHTML = '<div class="empty-state">// NO ROOMS YET //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const room of allRooms) {
+    container.appendChild(buildRoomCard(room));
+  }
+}
+
+function buildRoomCard(room) {
+  const div = document.createElement('div');
+  div.className = 'room-card';
+  div.setAttribute('data-room-id', room.id);
+
+  const statusColors = { active: 'room-status-active', done: 'room-status-done', cancelled: 'room-status-cancelled' };
+  const statusClass = statusColors[room.status] || 'room-status-done';
+  const msgCount = room.message_count || 0;
+  const lastActivity = room.last_message_at ? timeAgo(room.last_message_at) : (room.created_at ? timeAgo(room.created_at) : '');
+
+  div.innerHTML = `
+    <div class="room-card-top">
+      <div class="room-card-title">${escHtml(room.title)}</div>
+      <span class="room-status-badge ${statusClass}">${escHtml(room.status)}</span>
+    </div>
+    <div class="room-card-meta">
+      <span class="room-msg-count">${msgCount} message${msgCount !== 1 ? 's' : ''}</span>
+      ${lastActivity ? `<span class="room-last-activity">${lastActivity}</span>` : ''}
+    </div>
+  `;
+
+  div.addEventListener('click', () => enterRoom(room));
+  return div;
+}
+
+async function enterRoom(room) {
+  activeRoomId = room.id;
+
+  // Show chat view, hide list view
+  const listEl = document.getElementById('meeting-room-list');
+  const chatEl = document.getElementById('meeting-room-chat');
+  if (listEl) listEl.classList.add('hidden');
+  if (chatEl) chatEl.classList.remove('hidden');
+
+  // Set room title and status
+  const titleEl = document.getElementById('room-chat-title');
+  const statusEl = document.getElementById('room-chat-status-badge');
+  if (titleEl) titleEl.textContent = room.title;
+  if (statusEl) {
+    const statusColors = { active: 'room-status-active', done: 'room-status-done', cancelled: 'room-status-cancelled' };
+    statusEl.className = `room-status-badge ${statusColors[room.status] || ''}`;
+    statusEl.textContent = room.status;
+  }
+
+  // Load messages for this room
+  if (!roomMessages[room.id]) {
+    await loadRoomMessages(room.id);
+  }
+
+  renderRoomMessages(room.id);
+}
+
+function exitRoom() {
+  activeRoomId = null;
+  renderRoomList();
+}
+
+window.exitRoom = exitRoom;
+
+async function loadRoomMessages(roomId) {
+  try {
+    const res = await fetch(`${ROOMS_API}/${roomId}/messages?limit=200`);
+    if (!res.ok) throw new Error('Failed to fetch room messages');
+    roomMessages[roomId] = await res.json();
+  } catch (err) {
+    console.error('Error loading room messages:', err);
+    roomMessages[roomId] = [];
+  }
+}
+
+function renderRoomMessages(roomId) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
+  const msgs = roomMessages[roomId] || [];
+
+  if (!msgs.length) {
     container.innerHTML = '<div class="empty-state">// NO MESSAGES YET //</div>';
     return;
   }
 
   container.innerHTML = '';
-  for (const msg of allMessages) {
-    container.appendChild(buildChatMsg(msg));
+  let prevAgent = null;
+  for (const msg of msgs) {
+    container.appendChild(buildChatBubble(msg, prevAgent));
+    prevAgent = msg.agent_name;
   }
 
   scrollChatToBottom();
 }
 
-function buildChatMsg(msg) {
+/* ── Chat Bubble (new Slack-style design) ── */
+function buildChatBubble(msg, prevAgent) {
+  const isGrouped = prevAgent && prevAgent === msg.agent_name;
   const div = document.createElement('div');
-  div.className = 'chat-msg';
+  div.className = `chat-bubble ${isGrouped ? 'chat-bubble-grouped' : ''}`;
   div.setAttribute('data-msg-id', msg.id);
   applyAgentColorVars(div, msg.agent_name);
 
-  const initial = getAgentInitial(msg.agent_name);
   const c = getAgentColor(msg.agent_name);
   const accent = c ? c.accent : 'var(--text-dim)';
 
-  div.innerHTML = `
-    <div class="chat-msg-avatar">${escHtml(initial)}</div>
-    <div class="chat-msg-body">
-      <div class="chat-msg-header">
-        <span class="chat-msg-name" style="color: ${accent}">${escHtml(msg.agent_name)}</span>
-        <span class="chat-msg-time">${formatDate(msg.created_at)}</span>
-      </div>
-      <div class="chat-msg-text">${escHtml(msg.content)}</div>
-    </div>
-  `;
+  if (!isGrouped) {
+    // Full bubble with avatar + name
+    const avatarEl = buildAvatarEl(msg.agent_name, '');
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'chat-bubble-header';
+    headerDiv.innerHTML = `
+      <span class="chat-bubble-name" style="color:${accent}">${escHtml(msg.agent_name)}</span>
+      <span class="chat-bubble-time">${formatTime(msg.created_at)}</span>
+    `;
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'chat-bubble-body';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'chat-bubble-content';
+    contentDiv.textContent = msg.content;
+
+    bodyDiv.appendChild(headerDiv);
+    bodyDiv.appendChild(contentDiv);
+
+    const wrapDiv = document.createElement('div');
+    wrapDiv.className = 'chat-bubble-wrap';
+    wrapDiv.appendChild(avatarEl);
+    wrapDiv.appendChild(bodyDiv);
+
+    div.appendChild(wrapDiv);
+  } else {
+    // Grouped — no avatar, no name, just indented content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'chat-bubble-content chat-bubble-continuation';
+    contentDiv.textContent = msg.content;
+    div.appendChild(contentDiv);
+  }
+
   return div;
 }
 
-function appendChatMsg(msg) {
-  const container = document.getElementById('chat-messages');
+function appendRoomMessage(msg) {
+  if (!activeRoomId || msg.room_id !== activeRoomId) return;
 
-  // Remove empty state if present
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+
   const empty = container.querySelector('.empty-state');
   if (empty) empty.remove();
 
-  container.appendChild(buildChatMsg(msg));
+  const msgs = roomMessages[activeRoomId] || [];
+  const prevAgent = msgs.length > 0 ? msgs[msgs.length - 1].agent_name : null;
+
+  if (!roomMessages[activeRoomId]) roomMessages[activeRoomId] = [];
+  roomMessages[activeRoomId].push(msg);
+
+  container.appendChild(buildChatBubble(msg, prevAgent));
   scrollChatToBottom();
+}
+
+/* ── Legacy chat msg builder (kept for backward compat) ── */
+function buildChatMsg(msg) {
+  return buildChatBubble(msg, null);
 }
 
 function scrollChatToBottom() {
@@ -659,9 +852,96 @@ function updateMsgBadge() {
   }
 }
 
+/* ── Eng Tasks Board ── */
+function renderEngBoard() {
+  const groups = { backlog: [], in_progress: [], review: [], done: [] };
+  for (const t of allEngTasks) {
+    if (groups[t.status]) groups[t.status].push(t);
+  }
+
+  for (const status of ['backlog', 'in_progress', 'review', 'done']) {
+    const list  = document.getElementById(`eng-list-${status}`);
+    const count = document.getElementById(`eng-count-${status}`);
+    if (!list || !count) continue;
+    list.innerHTML = '';
+    count.textContent = groups[status].length;
+
+    if (groups[status].length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = '// EMPTY //';
+      list.appendChild(empty);
+    } else {
+      for (const task of groups[status]) {
+        list.appendChild(buildEngCard(task));
+      }
+    }
+  }
+}
+
+function buildEngCard(task) {
+  const div = document.createElement('div');
+  div.className = 'card eng-card';
+  div.setAttribute('data-eng-id', task.id);
+
+  const assigneeBadge = task.assigned_to
+    ? `<span class="badge ${assigneeBadgeClass(task.assigned_to)}">${escHtml(task.assigned_to)}</span>`
+    : '';
+
+  const priorityClasses = {
+    critical: 'priority-critical',
+    high:     'priority-high',
+    medium:   'priority-medium',
+    low:      'priority-low'
+  };
+  const priorityClass = priorityClasses[task.priority] || 'priority-medium';
+
+  div.innerHTML = `
+    <div class="card-top">
+      <span class="card-title">${escHtml(task.title)}</span>
+      <span class="eng-priority-badge ${priorityClass}">${escHtml(task.priority)}</span>
+    </div>
+    ${task.description ? `<div class="card-desc">${escHtml(task.description)}</div>` : ''}
+    <div class="card-footer">
+      ${assigneeBadge}
+      <span class="card-time">${timeAgo(task.updated_at)}</span>
+    </div>
+  `;
+
+  div.addEventListener('click', () => openEngTaskModal(task));
+  return div;
+}
+
+function openEngTaskModal(task) {
+  const overlay = document.getElementById('modal-overlay');
+  const content = document.getElementById('modal-content');
+
+  const priorityClasses = { critical: 'priority-critical', high: 'priority-high', medium: 'priority-medium', low: 'priority-low' };
+  const priorityClass = priorityClasses[task.priority] || 'priority-medium';
+
+  content.innerHTML = `
+    <div class="modal-title">${escHtml(task.title)}</div>
+    <div class="modal-meta">
+      ${task.assigned_to ? `<span class="badge ${assigneeBadgeClass(task.assigned_to)}">${escHtml(task.assigned_to)}</span>` : ''}
+      <span class="eng-priority-badge ${priorityClass}">${escHtml(task.priority)}</span>
+      <span class="status-badge status-${task.status === 'backlog' ? 'pending' : task.status === 'review' ? 'in_progress' : task.status}">${engStatusLabel(task.status)}</span>
+    </div>
+    <div class="modal-desc">${escHtml(task.description || 'No description provided.')}</div>
+    <div class="modal-times">
+      <span>Created: ${formatDate(task.created_at)}</span>
+      <span>Updated: ${formatDate(task.updated_at)}</span>
+      <span>ID: #${task.id}</span>
+    </div>
+  `;
+  overlay.classList.remove('hidden');
+}
+
 /* ── SSE connection ── */
 function connectSSE() {
-  if (eventSource) eventSource.close();
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
 
   const indicator = document.getElementById('live-indicator');
   const dot = indicator ? indicator.querySelector('.live-dot') : null;
@@ -691,16 +971,41 @@ function connectSSE() {
   eventSource.addEventListener('new_message', (e) => {
     const data = JSON.parse(e.data);
     const msg = data.message;
-    allMessages.push(msg);
+
+    // Update roomMessages cache
+    if (msg.room_id) {
+      if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
+      // Only push if not already there (SSE might fire before load completes)
+      if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
+        roomMessages[msg.room_id].push(msg);
+      }
+
+      // Also refresh room list to update message counts
+      const roomIdx = allRooms.findIndex(r => r.id === msg.room_id);
+      if (roomIdx !== -1) {
+        allRooms[roomIdx].message_count = (allRooms[roomIdx].message_count || 0) + 1;
+        allRooms[roomIdx].last_message_at = msg.created_at;
+      }
+    }
 
     if (activeSection === 'meeting') {
-      appendChatMsg(msg);
+      if (activeRoomId === msg.room_id) {
+        appendRoomMessage(msg);
+      } else if (activeRoomId === null) {
+        // on room list — re-render to update counts
+        renderRoomList();
+        unreadMessages++;
+        updateMsgBadge();
+      } else {
+        unreadMessages++;
+        updateMsgBadge();
+      }
     } else {
       unreadMessages++;
       updateMsgBadge();
     }
 
-    logActivity(`<strong>${escHtml(msg.agent_name)}</strong> posted in #${escHtml(msg.room)}`, 'in_progress');
+    logActivity(`<strong>${escHtml(msg.agent_name)}</strong> posted in ${escHtml(msg.room || 'room')}`, 'in_progress');
   });
 
   eventSource.addEventListener('task_update', (e) => {
@@ -712,7 +1017,7 @@ function connectSSE() {
     } else if (data.action === 'updated') {
       const idx = allTasks.findIndex(t => t.id === data.task.id);
       if (idx !== -1) allTasks[idx] = data.task;
-      logActivity(`Task updated: <strong>${escHtml(data.task.title)}</strong> → ${statusLabel(data.task.status)}`, data.task.status);
+      logActivity(`Task updated: <strong>${escHtml(data.task.title)}</strong> -> ${statusLabel(data.task.status)}`, data.task.status);
     } else if (data.action === 'deleted') {
       allTasks = allTasks.filter(t => t.id !== data.id);
       logActivity(`Task deleted`, 'in_progress');
@@ -722,9 +1027,44 @@ function connectSSE() {
     if (activeSection === 'dashboard') renderDashboard();
   });
 
+  eventSource.addEventListener('eng_task_update', (e) => {
+    const data = JSON.parse(e.data);
+
+    if (data.action === 'created') {
+      allEngTasks.push(data.task);
+      logActivity(`Eng task created: <strong>${escHtml(data.task.title)}</strong>`, 'in_progress');
+    } else if (data.action === 'updated') {
+      const idx = allEngTasks.findIndex(t => t.id === data.task.id);
+      if (idx !== -1) allEngTasks[idx] = data.task;
+      logActivity(`Eng task updated: <strong>${escHtml(data.task.title)}</strong>`, 'in_progress');
+    } else if (data.action === 'deleted') {
+      allEngTasks = allEngTasks.filter(t => t.id !== data.id);
+    }
+
+    if (activeSection === 'eng-tasks') renderEngBoard();
+  });
+
+  eventSource.addEventListener('room_update', (e) => {
+    const data = JSON.parse(e.data);
+    const room = data.room;
+
+    if (data.action === 'created') {
+      allRooms.unshift(room);
+      logActivity(`Room created: <strong>${escHtml(room.title)}</strong>`, 'in_progress');
+    } else if (data.action === 'updated') {
+      const idx = allRooms.findIndex(r => r.id === room.id);
+      if (idx !== -1) allRooms[idx] = { ...allRooms[idx], ...room };
+    }
+
+    if (activeSection === 'meeting' && !activeRoomId) {
+      renderRoomList();
+    }
+  });
+
   eventSource.onerror = () => {
     if (dot) dot.classList.remove('connected');
-    // Reconnect after 5 seconds
+    eventSource.close();
+    eventSource = null;
     setTimeout(connectSSE, 5000);
   };
 }
@@ -750,20 +1090,29 @@ async function loadAgents() {
   }
 }
 
-async function loadMessages() {
+async function loadRooms() {
   try {
-    const res = await fetch(`${MESSAGES_API}?room=general&limit=100`);
-    if (!res.ok) throw new Error('Failed to fetch messages');
-    allMessages = await res.json();
+    const res = await fetch(ROOMS_API);
+    if (!res.ok) throw new Error('Failed to fetch rooms');
+    allRooms = await res.json();
   } catch (err) {
-    console.error('Error loading messages:', err);
+    console.error('Error loading rooms:', err);
+  }
+}
+
+async function loadEngTasks() {
+  try {
+    const res = await fetch(ENG_TASKS_API);
+    if (!res.ok) throw new Error('Failed to fetch eng tasks');
+    allEngTasks = await res.json();
+  } catch (err) {
+    console.error('Error loading eng tasks:', err);
   }
 }
 
 async function loadAll() {
-  await Promise.all([loadTasks(), loadAgents(), loadMessages()]);
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
   renderDashboard();
-  renderMessages();
 }
 
 /* ── Init ── */
@@ -771,10 +1120,12 @@ loadAll().then(() => {
   connectSSE();
 });
 
-// Periodic full refresh as fallback (every 2 min — SSE handles real-time)
+// Periodic full refresh as fallback (every 2 min)
 setInterval(async () => {
-  await Promise.all([loadTasks(), loadAgents()]);
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
   if (activeSection === 'dashboard') renderDashboard();
   if (activeSection === 'tasks') renderBoard(filterTasks(allTasks, activeFilter));
   if (activeSection === 'agents') renderAgents();
+  if (activeSection === 'eng-tasks') renderEngBoard();
+  if (activeSection === 'meeting' && !activeRoomId) renderRoomList();
 }, 120000);
