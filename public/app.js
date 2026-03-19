@@ -1369,6 +1369,22 @@ async function loadAll() {
 
   await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
   renderDashboard();
+  renderBoard(filterTasks(allTasks, activeFilter));
+  renderEngBoard();
+  renderAgents();
+}
+
+/* ── Config load ── */
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const cfg = await res.json();
+      API_TOKEN = cfg.token || '';
+    }
+  } catch (err) {
+    console.warn('Could not load config:', err);
+  }
 }
 
 /* ── Config load ── */
