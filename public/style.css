@@ -1273,6 +1273,214 @@ body {
   padding-top: 14px;
 }
 
+/* ── Agent Card Clickable ── */
+.agent-card-clickable {
+  cursor: pointer;
+}
+
+.agent-tagline-preview {
+  font-size: 10px;
+  color: var(--agent-accent, var(--text-dim));
+  margin-top: 4px;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+/* ── Agent Profile Modal ── */
+.profile-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--agent-accent-border, var(--border));
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--agent-accent-bg, var(--bg-column));
+  border: 2px solid var(--agent-accent, var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--agent-accent, var(--text-dim));
+  flex-shrink: 0;
+}
+
+.profile-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 3px;
+}
+
+.profile-designation {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.profile-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.profile-model-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--agent-accent, var(--text-dim));
+  background: var(--agent-accent-bg, var(--bg-column));
+  border: 1px solid var(--agent-accent-border, var(--border));
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.profile-tagline {
+  font-size: 15px;
+  font-style: italic;
+  color: var(--agent-accent, var(--text-bright));
+  padding: 18px 0 14px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.profile-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-section-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-label-green { color: var(--green); }
+.profile-label-red   { color: var(--red); }
+
+.profile-task-count {
+  background: var(--bg-column);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.profile-section-body {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.profile-philosophy {
+  color: var(--text-bright);
+  font-style: italic;
+}
+
+.profile-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.profile-task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.profile-task-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot-pending     { background: var(--pending-color); }
+.status-dot-in_progress { background: var(--in_progress-color); }
+.status-dot-done        { background: var(--done-color); }
+
+.profile-task-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-empty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 1.5px;
+  padding: 8px 0;
+}
+
+.profile-footer {
+  padding-top: 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.profile-footer strong {
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .profile-two-col { grid-template-columns: 1fr; }
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--scrollbar-bg); }

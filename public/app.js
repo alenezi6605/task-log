@@ -345,6 +345,90 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
 }
 
+/* ── Agent Profile Modal ── */
+function openAgentProfile(agent) {
+  const overlay = document.getElementById('modal-overlay');
+  const content = document.getElementById('modal-content');
+
+  const c = getAgentColor(agent.name);
+  const initial = getAgentInitial(agent.name);
+  const accent = c ? c.accent : 'var(--text-dim)';
+  const accentBg = c ? c.accentBg : 'var(--bg-column)';
+  const accentBorder = c ? c.accentBorder : 'var(--border)';
+  const reportsTo = agent.reports_to || '—';
+  const taskCount = agent.active_task_count || 0;
+  const model = agent.model || 'claude-sonnet-4-6';
+  const isActive = agent.status === 'active';
+
+  const activeTasks = allTasks.filter(t =>
+    t.assigned_to && t.assigned_to.trim().toLowerCase() === agent.name.trim().toLowerCase() && t.status !== 'done'
+  );
+
+  const taskListHtml = activeTasks.length
+    ? activeTasks.map(t => `
+        <div class="profile-task-item">
+          <span class="profile-task-dot status-dot-${t.status}"></span>
+          <span class="profile-task-title">${escHtml(t.title)}</span>
+          <span class="status-badge status-${t.status}">${statusLabel(t.status)}</span>
+        </div>
+      `).join('')
+    : '<div class="profile-empty">// NO ACTIVE TASKS //</div>';
+
+  content.innerHTML = `
+    <div class="profile-modal" style="--agent-accent:${accent};--agent-accent-bg:${accentBg};--agent-accent-border:${accentBorder}">
+      <div class="profile-header">
+        <div class="profile-avatar">${escHtml(initial)}</div>
+        <div class="profile-header-info">
+          <div class="profile-name">${escHtml(agent.name)}</div>
+          <div class="profile-designation">${escHtml(agent.designation)}</div>
+          <div class="profile-badges">
+            <span class="badge badge-${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>
+            <span class="profile-model-badge">${escHtml(model)}</span>
+          </div>
+        </div>
+      </div>
+      ${agent.tagline ? `<div class="profile-tagline">"${escHtml(agent.tagline)}"</div>` : ''}
+      ${agent.bio ? `
+        <div class="profile-section">
+          <div class="profile-section-label">Bio</div>
+          <div class="profile-section-body">${escHtml(agent.bio)}</div>
+        </div>
+      ` : ''}
+      ${agent.philosophy ? `
+        <div class="profile-section">
+          <div class="profile-section-label">Philosophy</div>
+          <div class="profile-section-body profile-philosophy">${escHtml(agent.philosophy)}</div>
+        </div>
+      ` : ''}
+      ${(agent.demands || agent.hates) ? `
+        <div class="profile-two-col">
+          ${agent.demands ? `
+            <div class="profile-col">
+              <div class="profile-section-label profile-label-green">Demands</div>
+              <div class="profile-section-body">${escHtml(agent.demands)}</div>
+            </div>
+          ` : ''}
+          ${agent.hates ? `
+            <div class="profile-col">
+              <div class="profile-section-label profile-label-red">Hates</div>
+              <div class="profile-section-body">${escHtml(agent.hates)}</div>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+      <div class="profile-section">
+        <div class="profile-section-label">Active Tasks <span class="profile-task-count">${taskCount}</span></div>
+        <div class="profile-task-list">${taskListHtml}</div>
+      </div>
+      <div class="profile-footer">
+        <span>Reports to: <strong>${escHtml(reportsTo)}</strong></span>
+      </div>
+    </div>
+  `;
+
+  overlay.classList.remove('hidden');
+}
+
 /* ── Agents view ── */
 const VALID_MODELS = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
 
@@ -359,7 +443,7 @@ function renderAgents() {
 
   for (const agent of allAgents) {
     const card = document.createElement('div');
-    card.className = 'agent-card';
+    card.className = 'agent-card agent-card-clickable';
     applyAgentColorVars(card, agent.name);
 
     const initial = getAgentInitial(agent.name);
@@ -383,9 +467,11 @@ function renderAgents() {
         <div class="agent-info">
           <div class="agent-name">${escHtml(agent.name)}</div>
           <div class="agent-designation">${escHtml(agent.designation)}</div>
-          ${activity
-            ? `<div class="agent-activity-line has-activity">${escHtml(activity)}</div>`
-            : `<div class="agent-activity-line">Standby</div>`}
+          ${agent.tagline
+            ? `<div class="agent-tagline-preview">${escHtml(agent.tagline)}</div>`
+            : (activity
+              ? `<div class="agent-activity-line has-activity">${escHtml(activity)}</div>`
+              : `<div class="agent-activity-line">Standby</div>`)}
         </div>
         <span class="badge badge-${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>
       </div>
@@ -393,7 +479,7 @@ function renderAgents() {
         <div class="agent-reports">Reports to: <strong>${escHtml(reportsTo)}</strong></div>
         <div class="agent-tasks-count ${taskCount > 0 ? 'has-tasks' : ''}">${taskCount} active task${taskCount !== 1 ? 's' : ''}</div>
       </div>
-      <div class="agent-model-row">
+      <div class="agent-model-row" onclick="event.stopPropagation()">
         <span class="model-label">Model</span>
         <select class="model-select" data-agent-id="${agent.id}" onchange="updateAgentModel(${agent.id}, this.value, this)">
           ${modelOptions}
@@ -401,6 +487,7 @@ function renderAgents() {
         <span class="model-saved-flash" id="model-flash-${agent.id}">saved</span>
       </div>
     `;
+    card.addEventListener('click', () => openAgentProfile(agent));
     grid.appendChild(card);
   }
 }
@@ -456,6 +543,7 @@ function buildOrgTree(agents) {
 
     const node = document.createElement('div');
     node.className = 'org-node';
+    node.style.cursor = 'pointer';
     applyAgentColorVars(node, agent.name);
 
     const initial = getAgentInitial(agent.name);
@@ -465,6 +553,7 @@ function buildOrgTree(agents) {
       <div class="org-node-name">${escHtml(agent.name)}</div>
       <div class="org-node-role">${escHtml(agent.designation)}</div>
     `;
+    node.addEventListener('click', () => openAgentProfile(agent));
     wrapper.appendChild(node);
 
     if (children.length) {

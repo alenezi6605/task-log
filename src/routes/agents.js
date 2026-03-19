@@ -78,7 +78,7 @@ router.put('/:id', (req, res) => {
     const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.id);
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-    const { name, designation, reports_to, status, model, current_activity, last_active } = req.body;
+    const { name, designation, reports_to, status, model, current_activity, last_active, tagline, bio, philosophy, demands, hates } = req.body;
 
     if (model && !VALID_MODELS.includes(model)) {
       return res.status(400).json({ error: `model must be one of: ${VALID_MODELS.join(', ')}` });
@@ -92,6 +92,11 @@ router.put('/:id', (req, res) => {
       model: model !== undefined ? model : (agent.model || 'claude-sonnet-4-6'),
       current_activity: current_activity !== undefined ? current_activity : agent.current_activity,
       last_active: last_active !== undefined ? last_active : agent.last_active,
+      tagline: tagline !== undefined ? tagline : agent.tagline,
+      bio: bio !== undefined ? bio : agent.bio,
+      philosophy: philosophy !== undefined ? philosophy : agent.philosophy,
+      demands: demands !== undefined ? demands : agent.demands,
+      hates: hates !== undefined ? hates : agent.hates,
     };
 
     db.prepare(`
@@ -102,12 +107,19 @@ router.put('/:id', (req, res) => {
         status = ?,
         model = ?,
         current_activity = ?,
-        last_active = ?
+        last_active = ?,
+        tagline = ?,
+        bio = ?,
+        philosophy = ?,
+        demands = ?,
+        hates = ?
       WHERE id = ?
     `).run(
       updated.name, updated.designation, updated.reports_to,
       updated.status, updated.model, updated.current_activity,
-      updated.last_active, req.params.id
+      updated.last_active, updated.tagline, updated.bio,
+      updated.philosophy, updated.demands, updated.hates,
+      req.params.id
     );
 
     const result = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.id);
