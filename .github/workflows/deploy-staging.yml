@@ -35,36 +35,40 @@ jobs:
               -v task-log-staging-data:/data \
               -e NODE_ENV=staging \
               task-log-staging
-            echo "Staging deployment complete — http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):3002"
+            echo "Staging deployment complete on port 3002"
 
-      - name: Post-deploy smoke tests (staging)
-        run: |
-          echo "Running smoke tests against staging at http://${{ secrets.EC2_HOST }}:3002"
-          sleep 15
+      - name: Post-deploy smoke tests (staging, via SSH)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sleep 15
+            BASE="http://localhost:3002"
+            PASS=0
+            FAIL=0
 
-          BASE="http://${{ secrets.EC2_HOST }}:3002"
-          PASS=0
-          FAIL=0
+            check() {
+              local name="$1" url="$2" expected="$3"
+              local status
+              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
+              if [ "$status" = "$expected" ]; then
+                echo "PASS [$status] $name"
+                PASS=$((PASS + 1))
+              else
+                echo "FAIL [$status] $name (expected $expected, got $status)"
+                FAIL=$((FAIL + 1))
+              fi
+            }
 
-          check() {
-            local name="$1" url="$2" expected="$3"
-            local got
-            got=$(curl -s -o /dev/null -w "%{http_code}" "$url")
-            if [ "$got" = "$expected" ]; then
-              echo "PASS [$got] $name"
-              PASS=$((PASS+1))
-            else
-              echo "FAIL [$got] $name (expected $expected)"
-              FAIL=$((FAIL+1))
-            fi
-          }
+            check "Staging homepage" "$BASE/" 200
+            check "Staging /health" "$BASE/health" 200
+            check "Staging /api/config" "$BASE/api/config" 200
+            check "Staging /api/tasks" "$BASE/api/tasks" 200
+            check "Staging /api/agents" "$BASE/api/agents" 200
 
-          check "Staging homepage" "$BASE/" 200
-          check "Staging /api/config" "$BASE/api/config" 200
-          check "Staging /health" "$BASE/health" 200
-          check "Staging /api/tasks" "$BASE/api/tasks" 200
-          check "Staging /api/agents" "$BASE/api/agents" 200
-
-          echo ""
-          echo "Staging smoke: $PASS passed, $FAIL failed"
-          [ "$FAIL" -eq 0 ] || exit 1
+            echo ""
+            echo "Staging smoke: $PASS passed, $FAIL failed"
+            [ "$FAIL" -eq 0 ] || exit 1
+            echo "All staging smoke tests passed"
