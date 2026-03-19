@@ -36,79 +36,73 @@ jobs:
               task-log
             echo "Deployment complete"
 
-      - name: Post-deploy smoke tests
-        run: |
-          echo "Running post-deploy smoke tests against http://${{ secrets.EC2_HOST }}:3001"
-          sleep 15
+      - name: Post-deploy smoke tests (via SSH on EC2)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sleep 15
+            BASE="http://localhost:3001"
+            PASS=0
+            FAIL=0
 
-          BASE="http://${{ secrets.EC2_HOST }}:3001"
-          PASS=0
-          FAIL=0
+            check() {
+              local name="$1" url="$2" expected="$3"
+              local status
+              status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
+              if [ "$status" = "$expected" ]; then
+                echo "PASS [$status] $name"
+                PASS=$((PASS + 1))
+              else
+                echo "FAIL [$status] $name (expected $expected, got $status)"
+                FAIL=$((FAIL + 1))
+              fi
+            }
 
-          check() {
-            local name="$1"
-            local url="$2"
-            local expected="$3"
-            local status
-            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
-            if [ "$status" = "$expected" ]; then
-              echo "PASS [$status] $name"
+            check_body() {
+              local name="$1" url="$2" pattern="$3"
+              local body
+              body=$(curl -s --max-time 10 "$url")
+              if echo "$body" | grep -q "$pattern"; then
+                echo "PASS [body] $name"
+                PASS=$((PASS + 1))
+              else
+                echo "FAIL [body] $name (pattern '$pattern' not found)"
+                FAIL=$((FAIL + 1))
+              fi
+            }
+
+            check "App homepage" "$BASE/" 200
+            check "Health endpoint" "$BASE/health" 200
+            check "API config" "$BASE/api/config" 200
+            check "API tasks" "$BASE/api/tasks" 200
+            check "API agents" "$BASE/api/agents" 200
+            check "API rooms" "$BASE/api/rooms" 200
+            check "API eng-tasks" "$BASE/api/eng-tasks" 200
+            check "Static app.js" "$BASE/app.js" 200
+            check "Static style.css" "$BASE/style.css" 200
+
+            SSE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$BASE/api/events" 2>/dev/null || echo "000")
+            if [ "$SSE_STATUS" = "200" ] || [ "$SSE_STATUS" = "000" ]; then
+              echo "PASS [sse] SSE endpoint reachable"
               PASS=$((PASS + 1))
             else
-              echo "FAIL [$status] $name (expected $expected)"
+              echo "FAIL [sse] SSE endpoint (got $SSE_STATUS)"
               FAIL=$((FAIL + 1))
             fi
-          }
 
-          check_body() {
-            local name="$1"
-            local url="$2"
-            local pattern="$3"
-            local body
-            body=$(curl -s --max-time 10 "$url")
-            if echo "$body" | grep -q "$pattern"; then
-              echo "PASS [body] $name"
-              PASS=$((PASS + 1))
-            else
-              echo "FAIL [body] $name (pattern '$pattern' not found)"
-              FAIL=$((FAIL + 1))
+            check_body "Agents has id field" "$BASE/api/agents" '"id"'
+            check_body "Config has token field" "$BASE/api/config" '"token"'
+            check_body "Health returns ok status" "$BASE/health" '"status"'
+            check_body "Homepage has TASK LOG" "$BASE/" "TASK LOG"
+            check "Unknown API route is 404" "$BASE/api/doesnotexist" 404
+
+            echo ""
+            echo "Smoke tests: $PASS passed, $FAIL failed"
+            if [ "$FAIL" -gt 0 ]; then
+              echo "SMOKE TEST FAILURE"
+              exit 1
             fi
-          }
-
-          # Core health checks
-          check "App homepage" "$BASE/" 200
-          check "Health endpoint" "$BASE/health" 200
-          check "API config endpoint" "$BASE/api/config" 200
-          check "API tasks list" "$BASE/api/tasks" 200
-          check "API agents list" "$BASE/api/agents" 200
-          check "API rooms list" "$BASE/api/rooms" 200
-          check "API eng-tasks list" "$BASE/api/eng-tasks" 200
-          check "Static app.js served" "$BASE/app.js" 200
-          check "Static style.css served" "$BASE/style.css" 200
-
-          # SSE endpoint — use --max-time 3 to connect, get headers, disconnect
-          SSE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$BASE/api/events" 2>/dev/null || true)
-          if [ "$SSE_STATUS" = "200" ] || [ "$SSE_STATUS" = "000" ]; then
-            echo "PASS [sse] SSE endpoint reachable"
-            PASS=$((PASS + 1))
-          else
-            echo "FAIL [sse] SSE endpoint (got $SSE_STATUS)"
-            FAIL=$((FAIL + 1))
-          fi
-
-          # Content checks
-          check_body "Agents response is JSON array" "$BASE/api/agents" '"id"'
-          check_body "Config endpoint returns token field" "$BASE/api/config" '"token"'
-          check_body "Homepage contains TASK LOG" "$BASE/" "TASK LOG"
-          check_body "Health endpoint returns status ok" "$BASE/health" '"status"'
-
-          # Error path checks
-          check "404 on unknown API route" "$BASE/api/doesnotexist" 404
-
-          echo ""
-          echo "Smoke tests complete: $PASS passed, $FAIL failed"
-          if [ "$FAIL" -gt 0 ]; then
-            echo "SMOKE TEST FAILURE — $FAIL checks failed"
-            exit 1
-          fi
-          echo "All smoke tests passed"
+            echo "All smoke tests passed"
