@@ -168,7 +168,9 @@ function formatTime(dt) {
 
 function timeAgo(dt) {
   if (!dt) return '';
-  const diff = Date.now() - new Date(dt).getTime();
+  // Force UTC — DB timestamps have no timezone suffix, browsers may parse as local
+  const dtStr = (typeof dt === 'string' && !dt.endsWith('Z') && !dt.includes('+')) ? dt.replace(' ', 'T') + 'Z' : dt;
+  const diff = Date.now() - new Date(dtStr).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
