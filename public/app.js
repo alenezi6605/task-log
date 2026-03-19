@@ -214,17 +214,28 @@ function switchSection(section) {
   }
   if (section === 'eng-tasks')   renderEngBoard();
 
-  document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
 }
 
 window.switchSection = switchSection;
 
 /* ── Mobile sidebar ── */
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const isOpen = sidebar.classList.toggle('open');
+  if (overlay) overlay.classList.toggle('visible', isOpen);
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('visible');
 }
 
 window.toggleSidebar = toggleSidebar;
+window.closeSidebar = closeSidebar;
 
 /* ── Dashboard clock ── */
 function updateClock() {
