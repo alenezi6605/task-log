@@ -1352,39 +1352,18 @@ async function loadEngTasks() {
 }
 
 async function loadAll() {
-  // Show loading skeletons while data loads
-  const kanbanBoard = document.getElementById('kanban-board');
-  const engBoard = document.getElementById('eng-kanban-board');
+  // Skeletons go inside list containers only — never replace column structure
+  const skCard = '<div class="skeleton-card"><div class="skeleton skeleton-line-lg skeleton-w-3-4"></div><div class="skeleton skeleton-line skeleton-w-full"></div><div class="skeleton skeleton-line-sm skeleton-w-1-2"></div></div>'.repeat(3);
+  if (!allTasks.length) ['list-pending','list-in_progress','list-done'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML=skCard; });
+  if (!allEngTasks.length) ['eng-list-backlog','eng-list-in_progress','eng-list-review','eng-list-done'].forEach(function(id){ var el=document.getElementById(id); if(el) el.innerHTML=skCard; });
   const agentsGrid = document.getElementById('agents-grid');
-
-  if (kanbanBoard && !allTasks.length) {
-    kanbanBoard.innerHTML = buildKanbanSkeleton([1,2,3]);
-  }
-  if (engBoard && !allEngTasks.length) {
-    engBoard.innerHTML = buildKanbanSkeleton([1,2,3,4]);
-  }
-  if (agentsGrid && !allAgents.length) {
-    agentsGrid.innerHTML = buildAgentsSkeleton();
-  }
+  if (agentsGrid && !allAgents.length) agentsGrid.innerHTML = buildAgentsSkeleton();
 
   await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
   renderDashboard();
   renderBoard(filterTasks(allTasks, activeFilter));
   renderEngBoard();
   renderAgents();
-}
-
-/* ── Config load ── */
-async function loadConfig() {
-  try {
-    const res = await fetch('/api/config');
-    if (res.ok) {
-      const cfg = await res.json();
-      API_TOKEN = cfg.token || '';
-    }
-  } catch (err) {
-    console.warn('Could not load config:', err);
-  }
 }
 
 /* ── Config load ── */
