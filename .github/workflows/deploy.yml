@@ -84,12 +84,13 @@ jobs:
             check "Static app.js" "$BASE/app.js" 200
             check "Static style.css" "$BASE/style.css" 200
 
-            SSE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$BASE/api/events" 2>/dev/null || echo "000")
-            if [ "$SSE_STATUS" = "200" ] || [ "$SSE_STATUS" = "000" ]; then
+            # SSE check — connect with 3s timeout, accept 200 or timeout (curl exit 28)
+            SSE_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$BASE/api/events"; true)
+            if [ "$SSE_CODE" = "200" ]; then
               echo "PASS [sse] SSE endpoint reachable"
               PASS=$((PASS + 1))
             else
-              echo "FAIL [sse] SSE endpoint (got $SSE_STATUS)"
+              echo "FAIL [sse] SSE endpoint (got $SSE_CODE)"
               FAIL=$((FAIL + 1))
             fi
 
