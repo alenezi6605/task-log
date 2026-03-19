@@ -138,10 +138,20 @@ function engStatusLabel(status) {
   return { backlog: 'Backlog', in_progress: 'In Progress', review: 'In Review', done: 'Done' }[status] || status;
 }
 
+/* ── Force UTC parse for naive DB timestamp strings ── */
+function forceUTC(dt) {
+  if (!dt) return dt;
+  if (typeof dt === 'string' && !dt.endsWith('Z') && !dt.includes('+') && !dt.includes('-', 10)) {
+    // Naive string like "2026-03-19 15:55:57" — no tz suffix; replace space with T and append Z
+    return dt.replace(' ', 'T') + 'Z';
+  }
+  return dt;
+}
+
 /* ── UTC+3 (Kuwait) offset helper ── */
 function toUTC3(dt) {
   if (!dt) return null;
-  const d = new Date(dt);
+  const d = new Date(forceUTC(dt));
   // Shift by +3 hours: add 3 * 60 * 60 * 1000 ms
   return new Date(d.getTime() + 3 * 60 * 60 * 1000);
 }
@@ -168,9 +178,7 @@ function formatTime(dt) {
 
 function timeAgo(dt) {
   if (!dt) return '';
-  // Force UTC — DB timestamps have no timezone suffix, browsers may parse as local
-  const dtStr = (typeof dt === 'string' && !dt.endsWith('Z') && !dt.includes('+')) ? dt.replace(' ', 'T') + 'Z' : dt;
-  const diff = Date.now() - new Date(dtStr).getTime();
+  const diff = Date.now() - new Date(forceUTC(dt)).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
@@ -182,7 +190,7 @@ function timeAgo(dt) {
 
 function isRecentlyActive(last_active) {
   if (!last_active) return false;
-  return (Date.now() - new Date(last_active).getTime()) < 5 * 60 * 1000;
+  return (Date.now() - new Date(forceUTC(last_active)).getTime()) < 5 * 60 * 1000;
 }
 
 function escHtml(str) {
