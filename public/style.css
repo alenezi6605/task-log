@@ -1955,6 +1955,73 @@ body {
   .eng-kanban { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* ── Agent Activity Feed ── */
+.dashboard-panels-full {
+  grid-template-columns: 1fr;
+}
+
+.panel-full {
+  max-height: 320px;
+}
+
+.agent-activity-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.agent-feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-feed-item:last-child { border-bottom: none; }
+
+.chat-msg-avatar.agent-feed-avatar {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.agent-feed-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-feed-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.agent-feed-name {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.agent-feed-action {
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-feed-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
 @media (max-width: 1100px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-panels { grid-template-columns: 1fr; }

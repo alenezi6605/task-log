@@ -33,6 +33,7 @@ let allEngTasks     = [];
 let unreadMessages  = 0;
 let eventSource     = null;
 let activityLog     = []; // { text, status, time }
+let agentActivityLog = []; // { agentName, action, time, isoTime } — granular agent steps
 let activeRoomId    = null; // currently viewed room
 let roomMessages    = {}; // roomId -> array of messages
 
@@ -269,6 +270,7 @@ function renderDashboard() {
 
   renderWhosWorking();
   renderActivityFeed();
+  renderAgentActivityFeed();
 }
 
 function renderWhosWorking() {
@@ -340,6 +342,50 @@ function logActivity(text, status) {
   activityLog.push({ text, status: status || 'in_progress', time: timeAgo(new Date().toISOString()) });
   if (activityLog.length > 50) activityLog.shift();
   if (activeSection === 'dashboard') renderActivityFeed();
+}
+
+function logAgentActivity(agentName, action) {
+  const isoTime = new Date().toISOString();
+  agentActivityLog.push({ agentName, action, time: formatTime(isoTime), isoTime });
+  if (agentActivityLog.length > 100) agentActivityLog.shift();
+  if (activeSection === 'dashboard') renderAgentActivityFeed();
+}
+
+function renderAgentActivityFeed() {
+  const container = document.getElementById('agent-activity-feed');
+  if (!container) return;
+
+  if (!agentActivityLog.length) {
+    container.innerHTML = '<div class="empty-state">// NO AGENT ACTIVITY //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  const recent = agentActivityLog.slice(-50).reverse();
+  for (const entry of recent) {
+    const item = document.createElement('div');
+    item.className = 'agent-feed-item';
+    applyAgentColorVars(item, entry.agentName);
+
+    const c = getAgentColor(entry.agentName);
+    const accent = c ? c.accent : 'var(--text-dim)';
+
+    const avatarEl = buildAvatarEl(entry.agentName, 'agent-feed-avatar');
+
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'agent-feed-body';
+    bodyDiv.innerHTML = `
+      <div class="agent-feed-line">
+        <span class="agent-feed-name" style="color:${accent}">${escHtml(entry.agentName)}</span>
+        <span class="agent-feed-action">${escHtml(entry.action)}</span>
+      </div>
+      <div class="agent-feed-time">${entry.time}</div>
+    `;
+
+    item.appendChild(avatarEl);
+    item.appendChild(bodyDiv);
+    container.appendChild(item);
+  }
 }
 
 /* ── Task filter ── */
@@ -1119,6 +1165,7 @@ function connectSSE() {
 
     if (agent.current_activity) {
       logActivity(`<strong>${escHtml(agent.name)}</strong>: ${escHtml(agent.current_activity)}`, 'in_progress');
+      logAgentActivity(agent.name, agent.current_activity);
     }
   });
 
@@ -1126,15 +1173,8 @@ function connectSSE() {
     const data = JSON.parse(e.data);
     const msg = data.message;
 
-    // Update roomMessages cache
+    // Update room list metadata (message count + last activity)
     if (msg.room_id) {
-      if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
-      // Only push if not already there (SSE might fire before load completes)
-      if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
-        roomMessages[msg.room_id].push(msg);
-      }
-
-      // Also refresh room list to update message counts
       const roomIdx = allRooms.findIndex(r => r.id === msg.room_id);
       if (roomIdx !== -1) {
         allRooms[roomIdx].message_count = (allRooms[roomIdx].message_count || 0) + 1;
@@ -1144,17 +1184,39 @@ function connectSSE() {
 
     if (activeSection === 'meeting') {
       if (activeRoomId === msg.room_id) {
+        // appendRoomMessage handles cache push + DOM append
         appendRoomMessage(msg);
       } else if (activeRoomId === null) {
         // on room list — re-render to update counts
+        // Still cache the message so entering the room later shows it
+        if (msg.room_id) {
+          if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
+          if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
+            roomMessages[msg.room_id].push(msg);
+          }
+        }
         renderRoomList();
         unreadMessages++;
         updateMsgBadge();
       } else {
+        // In a different room — cache only
+        if (msg.room_id) {
+          if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
+          if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
+            roomMessages[msg.room_id].push(msg);
+          }
+        }
         unreadMessages++;
         updateMsgBadge();
       }
     } else {
+      // Not in meeting section — cache so it's ready when user enters
+      if (msg.room_id) {
+        if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
+        if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
+          roomMessages[msg.room_id].push(msg);
+        }
+      }
       unreadMessages++;
       updateMsgBadge();
     }
