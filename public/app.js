@@ -1,11 +1,18 @@
 /* ── Constants ── */
-const TASKS_API  = '/api/tasks';
-const AGENTS_API = '/api/agents';
+const TASKS_API    = '/api/tasks';
+const AGENTS_API   = '/api/agents';
+const MESSAGES_API = '/api/messages';
+const EVENTS_URL   = '/api/events';
 
 /* ── State ── */
-let activeTab  = 'all';
-let allTasks   = [];
-let allAgents  = [];
+let activeSection  = 'dashboard';
+let activeFilter   = 'all';
+let allTasks       = [];
+let allAgents      = [];
+let allMessages    = [];
+let unreadMessages = 0;
+let eventSource    = null;
+let activityLog    = []; // { text, status, time }
 
 /* ── Theme ── */
 (function initTheme() {
@@ -29,66 +36,16 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 /* ── Agent color config ── */
 const AGENT_COLORS = {
-  abdulrahman: {
-    accent: '#f59e0b',
-    accentBg: 'rgba(245,158,11,0.10)',
-    accentBorder: 'rgba(245,158,11,0.28)',
-    initial: 'A'
-  },
-  v: {
-    accent: '#00f0ff',
-    accentBg: 'rgba(0,240,255,0.08)',
-    accentBorder: 'rgba(0,240,255,0.25)',
-    initial: 'V'
-  },
-  aurore: {
-    accent: '#b84fff',
-    accentBg: 'rgba(184,79,255,0.10)',
-    accentBorder: 'rgba(184,79,255,0.25)',
-    initial: 'Au'
-  },
-  judy: {
-    accent: '#ff4fa0',
-    accentBg: 'rgba(255,79,160,0.10)',
-    accentBorder: 'rgba(255,79,160,0.25)',
-    initial: 'J'
-  },
-  rex: {
-    accent: '#ff6b2b',
-    accentBg: 'rgba(255,107,43,0.10)',
-    accentBorder: 'rgba(255,107,43,0.25)',
-    initial: 'R'
-  },
-  pixel: {
-    accent: '#4fa8ff',
-    accentBg: 'rgba(79,168,255,0.10)',
-    accentBorder: 'rgba(79,168,255,0.25)',
-    initial: 'Px'
-  },
-  ghost: {
-    accent: '#8892a4',
-    accentBg: 'rgba(136,146,164,0.10)',
-    accentBorder: 'rgba(136,146,164,0.25)',
-    initial: 'Gh'
-  },
-  zara: {
-    accent: '#00e676',
-    accentBg: 'rgba(0,230,118,0.08)',
-    accentBorder: 'rgba(0,230,118,0.25)',
-    initial: 'Z'
-  },
-  mia: {
-    accent: '#ff6b8a',
-    accentBg: 'rgba(255,107,138,0.10)',
-    accentBorder: 'rgba(255,107,138,0.25)',
-    initial: 'M'
-  },
-  nova: {
-    accent: '#ffe566',
-    accentBg: 'rgba(255,229,102,0.10)',
-    accentBorder: 'rgba(255,229,102,0.25)',
-    initial: 'N'
-  }
+  abdulrahman: { accent: '#f59e0b', accentBg: 'rgba(245,158,11,0.10)', accentBorder: 'rgba(245,158,11,0.28)', initial: 'A' },
+  v:           { accent: '#00f0ff', accentBg: 'rgba(0,240,255,0.08)',   accentBorder: 'rgba(0,240,255,0.25)',  initial: 'V' },
+  aurore:      { accent: '#b84fff', accentBg: 'rgba(184,79,255,0.10)',  accentBorder: 'rgba(184,79,255,0.25)', initial: 'Au' },
+  judy:        { accent: '#ff4fa0', accentBg: 'rgba(255,79,160,0.10)',  accentBorder: 'rgba(255,79,160,0.25)', initial: 'J' },
+  rex:         { accent: '#ff6b2b', accentBg: 'rgba(255,107,43,0.10)',  accentBorder: 'rgba(255,107,43,0.25)', initial: 'R' },
+  pixel:       { accent: '#4fa8ff', accentBg: 'rgba(79,168,255,0.10)',  accentBorder: 'rgba(79,168,255,0.25)', initial: 'Px' },
+  ghost:       { accent: '#8892a4', accentBg: 'rgba(136,146,164,0.10)', accentBorder: 'rgba(136,146,164,0.25)', initial: 'Gh' },
+  zara:        { accent: '#00e676', accentBg: 'rgba(0,230,118,0.08)',   accentBorder: 'rgba(0,230,118,0.25)',  initial: 'Z' },
+  mia:         { accent: '#ff6b8a', accentBg: 'rgba(255,107,138,0.10)', accentBorder: 'rgba(255,107,138,0.25)', initial: 'Mi' },
+  nova:        { accent: '#ffe566', accentBg: 'rgba(255,229,102,0.10)', accentBorder: 'rgba(255,229,102,0.25)', initial: 'N' }
 };
 
 function getAgentColor(name) {
@@ -105,12 +62,17 @@ function applyAgentColorVars(el, name) {
   }
 }
 
-/* ── Badge helpers ── */
+function getAgentInitial(name) {
+  const c = getAgentColor(name);
+  return c ? c.initial : (name || '?').charAt(0).toUpperCase();
+}
+
+/* ── Helpers ── */
 function assigneeBadgeClass(assignee) {
   if (!assignee) return 'badge-tbd';
   const a = assignee.trim().toLowerCase();
-  const known = ['aurore','judy','v','abdulrahman','rex','pixel','ghost','zara','mia','nova','tbd'];
-  if (a === 'tbd' || !assignee) return 'badge-tbd';
+  const known = ['aurore','judy','v','abdulrahman','rex','pixel','ghost','zara','mia','nova'];
+  if (a === 'tbd') return 'badge-tbd';
   if (known.includes(a)) return `badge-${a}`;
   return 'badge-other';
 }
@@ -138,12 +100,192 @@ function timeAgo(dt) {
   return `${days}d ago`;
 }
 
+function isRecentlyActive(last_active) {
+  if (!last_active) return false;
+  return (Date.now() - new Date(last_active).getTime()) < 5 * 60 * 1000; // 5 min
+}
+
 function escHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/* ── Section navigation ── */
+function switchSection(section) {
+  activeSection = section;
+
+  // Update nav items
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === section);
+  });
+
+  // Hide all sections
+  document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+
+  // Show target
+  const target = document.getElementById(`section-${section}`);
+  if (target) target.classList.remove('hidden');
+
+  // Render on switch
+  if (section === 'dashboard')  renderDashboard();
+  if (section === 'tasks')      renderBoard(filterTasks(allTasks, activeFilter));
+  if (section === 'agents')     renderAgents();
+  if (section === 'org')        buildOrgTree(allAgents);
+  if (section === 'meeting') {
+    unreadMessages = 0;
+    updateMsgBadge();
+    scrollChatToBottom();
+  }
+
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+window.switchSection = switchSection;
+
+/* ── Mobile sidebar ── */
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+window.toggleSidebar = toggleSidebar;
+
+/* ── Dashboard clock ── */
+function updateClock() {
+  const el = document.getElementById('dashboard-time');
+  if (el) {
+    el.textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ── Dashboard rendering ── */
+function renderDashboard() {
+  // Stats
+  const active = allAgents.filter(a => a.status === 'active').length;
+  const pending = allTasks.filter(t => t.status === 'pending').length;
+  const inProgress = allTasks.filter(t => t.status === 'in_progress').length;
+  const done = allTasks.filter(t => t.status === 'done').length;
+
+  const el = id => document.getElementById(id);
+  el('stat-active-agents').textContent = active;
+  el('stat-pending').textContent = pending;
+  el('stat-inprogress').textContent = inProgress;
+  el('stat-done').textContent = done;
+
+  renderWhosWorking();
+  renderActivityFeed();
+}
+
+function renderWhosWorking() {
+  const container = document.getElementById('whos-working');
+  const activeAgents = allAgents.filter(a => a.status === 'active');
+
+  if (!activeAgents.length) {
+    container.innerHTML = '<div class="empty-state">// NO ACTIVE AGENTS //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const agent of activeAgents) {
+    const live = isRecentlyActive(agent.last_active);
+    const item = document.createElement('div');
+    item.className = 'working-item';
+    applyAgentColorVars(item, agent.name);
+
+    const initial = getAgentInitial(agent.name);
+    const activity = agent.current_activity || 'Standby';
+
+    item.innerHTML = `
+      <div class="working-avatar">${escHtml(initial)}</div>
+      <div class="working-info">
+        <div class="working-name">
+          ${escHtml(agent.name)}
+          <span class="activity-dot ${live ? 'live' : ''}"></span>
+        </div>
+        <div class="working-activity">${escHtml(activity)}</div>
+      </div>
+    `;
+    container.appendChild(item);
+  }
+}
+
+function renderActivityFeed() {
+  const container = document.getElementById('activity-feed');
+
+  if (!activityLog.length) {
+    container.innerHTML = '<div class="empty-state">// NO ACTIVITY //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  const recent = activityLog.slice(-20).reverse();
+  for (const entry of recent) {
+    const item = document.createElement('div');
+    item.className = 'feed-item';
+    item.innerHTML = `
+      <div class="feed-dot feed-dot-${entry.status || 'in_progress'}"></div>
+      <div class="feed-body">
+        <div class="feed-text">${entry.text}</div>
+        <div class="feed-time">${entry.time}</div>
+      </div>
+    `;
+    container.appendChild(item);
+  }
+}
+
+function logActivity(text, status) {
+  activityLog.push({ text, status: status || 'in_progress', time: timeAgo(new Date().toISOString()) });
+  if (activityLog.length > 50) activityLog.shift();
+  if (activeSection === 'dashboard') renderActivityFeed();
+}
+
+/* ── Task filter ── */
+function filterTasks(tasks, filter) {
+  if (filter === 'my') return tasks.filter(t => t.assigned_to && t.assigned_to.trim().toLowerCase() === 'abdulrahman');
+  if (filter === 'crew') return tasks.filter(t => { if (!t.assigned_to) return true; return t.assigned_to.trim().toLowerCase() !== 'abdulrahman'; });
+  return tasks;
+}
+
+function setTaskFilter(filter) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  renderBoard(filterTasks(allTasks, filter));
+}
+
+window.setTaskFilter = setTaskFilter;
+
+/* ── Kanban board ── */
+function renderBoard(tasks) {
+  const groups = { pending: [], in_progress: [], done: [] };
+  for (const t of tasks) {
+    if (groups[t.status]) groups[t.status].push(t);
+  }
+
+  for (const status of ['pending', 'in_progress', 'done']) {
+    const list  = document.getElementById(`list-${status}`);
+    const count = document.getElementById(`count-${status}`);
+    list.innerHTML = '';
+    count.textContent = groups[status].length;
+
+    if (groups[status].length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = '// NO TASKS //';
+      list.appendChild(empty);
+    } else {
+      for (const task of groups[status]) {
+        list.appendChild(buildCard(task));
+      }
+    }
+  }
 }
 
 /* ── Task Card ── */
@@ -203,47 +345,9 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
 }
 
-/* ── Tab filter logic ── */
-function filterTasksForTab(tasks, tab) {
-  if (tab === 'my') {
-    return tasks.filter(t => t.assigned_to && t.assigned_to.trim().toLowerCase() === 'abdulrahman');
-  }
-  if (tab === 'crew') {
-    return tasks.filter(t => {
-      if (!t.assigned_to) return true;
-      return t.assigned_to.trim().toLowerCase() !== 'abdulrahman';
-    });
-  }
-  return tasks; // 'all'
-}
-
-/* ── Kanban board ── */
-function renderBoard(tasks) {
-  const groups = { pending: [], in_progress: [], done: [] };
-  for (const t of tasks) {
-    if (groups[t.status]) groups[t.status].push(t);
-  }
-
-  for (const status of ['pending', 'in_progress', 'done']) {
-    const list  = document.getElementById(`list-${status}`);
-    const count = document.getElementById(`count-${status}`);
-    list.innerHTML = '';
-    count.textContent = groups[status].length;
-
-    if (groups[status].length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = '// NO TASKS //';
-      list.appendChild(empty);
-    } else {
-      for (const task of groups[status]) {
-        list.appendChild(buildCard(task));
-      }
-    }
-  }
-}
-
 /* ── Agents view ── */
+const VALID_MODELS = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
+
 function renderAgents() {
   const grid = document.getElementById('agents-grid');
   grid.innerHTML = '';
@@ -258,18 +362,30 @@ function renderAgents() {
     card.className = 'agent-card';
     applyAgentColorVars(card, agent.name);
 
-    const c = getAgentColor(agent.name);
-    const initial = c ? c.initial : agent.name.charAt(0).toUpperCase();
+    const initial = getAgentInitial(agent.name);
     const reportsTo = agent.reports_to || '—';
     const isActive = agent.status === 'active';
     const taskCount = agent.active_task_count || 0;
+    const live = isRecentlyActive(agent.last_active);
+    const activity = agent.current_activity;
+    const model = agent.model || 'claude-sonnet-4-6';
+
+    const modelOptions = VALID_MODELS.map(m =>
+      `<option value="${m}" ${m === model ? 'selected' : ''}>${m}</option>`
+    ).join('');
 
     card.innerHTML = `
       <div class="agent-card-top">
-        <div class="agent-avatar">${escHtml(initial)}</div>
+        <div class="agent-avatar">
+          ${escHtml(initial)}
+          ${live ? '<div class="agent-live-ring"></div>' : ''}
+        </div>
         <div class="agent-info">
           <div class="agent-name">${escHtml(agent.name)}</div>
           <div class="agent-designation">${escHtml(agent.designation)}</div>
+          ${activity
+            ? `<div class="agent-activity-line has-activity">${escHtml(activity)}</div>`
+            : `<div class="agent-activity-line">Standby</div>`}
         </div>
         <span class="badge badge-${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>
       </div>
@@ -277,37 +393,59 @@ function renderAgents() {
         <div class="agent-reports">Reports to: <strong>${escHtml(reportsTo)}</strong></div>
         <div class="agent-tasks-count ${taskCount > 0 ? 'has-tasks' : ''}">${taskCount} active task${taskCount !== 1 ? 's' : ''}</div>
       </div>
+      <div class="agent-model-row">
+        <span class="model-label">Model</span>
+        <select class="model-select" data-agent-id="${agent.id}" onchange="updateAgentModel(${agent.id}, this.value, this)">
+          ${modelOptions}
+        </select>
+        <span class="model-saved-flash" id="model-flash-${agent.id}">saved</span>
+      </div>
     `;
     grid.appendChild(card);
   }
 }
 
-/* ── Org Tree view ── */
-function buildOrgTree(agents) {
-  // Build lookup
-  const byName = {};
-  for (const a of agents) {
-    byName[a.name.toLowerCase()] = a;
-  }
+async function updateAgentModel(agentId, model, selectEl) {
+  try {
+    const res = await fetch(`${AGENTS_API}/${agentId}/model`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model })
+    });
+    if (!res.ok) throw new Error('Failed to update model');
 
-  // Build children map
-  const childrenOf = {};
-  for (const a of agents) {
-    const key = a.name.toLowerCase();
-    childrenOf[key] = [];
+    // Update local state
+    const agent = allAgents.find(a => a.id === agentId);
+    if (agent) agent.model = model;
+
+    // Flash feedback
+    const flash = document.getElementById(`model-flash-${agentId}`);
+    if (flash) {
+      flash.classList.add('show');
+      setTimeout(() => flash.classList.remove('show'), 1800);
+    }
+  } catch (err) {
+    console.error('Model update failed:', err);
   }
+}
+
+window.updateAgentModel = updateAgentModel;
+
+/* ── Org Tree ── */
+function buildOrgTree(agents) {
+  const byName = {};
+  for (const a of agents) byName[a.name.toLowerCase()] = a;
+
+  const childrenOf = {};
+  for (const a of agents) childrenOf[a.name.toLowerCase()] = [];
   for (const a of agents) {
     if (a.reports_to) {
-      const parentKey = a.reports_to.toLowerCase();
-      if (childrenOf[parentKey]) {
-        childrenOf[parentKey].push(a);
-      }
+      const pk = a.reports_to.toLowerCase();
+      if (childrenOf[pk]) childrenOf[pk].push(a);
     }
   }
 
-  // Find roots (no reports_to or reports_to not in list)
   const roots = agents.filter(a => !a.reports_to || !byName[a.reports_to.toLowerCase()]);
-
   const tree = document.getElementById('org-tree');
   tree.innerHTML = '';
 
@@ -320,12 +458,10 @@ function buildOrgTree(agents) {
     node.className = 'org-node';
     applyAgentColorVars(node, agent.name);
 
-    const c = getAgentColor(agent.name);
-    const badgeBg  = c ? c.accentBg  : 'var(--bg-column)';
-    const badgeBdr = c ? c.accentBorder : 'var(--border)';
-    const badgeClr = c ? c.accent : 'var(--text-dim)';
+    const initial = getAgentInitial(agent.name);
 
     node.innerHTML = `
+      <div class="org-node-avatar">${escHtml(initial)}</div>
       <div class="org-node-name">${escHtml(agent.name)}</div>
       <div class="org-node-role">${escHtml(agent.designation)}</div>
     `;
@@ -342,10 +478,8 @@ function buildOrgTree(agents) {
         childRow.appendChild(connector);
       }
 
-      // Draw horizontal connector line spanning children
       wrapper.appendChild(childRow);
 
-      // After DOM insert, position the line
       requestAnimationFrame(() => {
         const connectors = childRow.querySelectorAll(':scope > .org-child-connector');
         if (connectors.length > 1) {
@@ -366,41 +500,145 @@ function buildOrgTree(agents) {
     container.appendChild(wrapper);
   }
 
-  for (const root of roots) {
-    renderNode(root, tree);
-  }
+  for (const root of roots) renderNode(root, tree);
 }
 
-/* ── Tab switching ── */
-function switchTab(tab) {
-  activeTab = tab;
+/* ── Meeting Room ── */
+function renderMessages() {
+  const container = document.getElementById('chat-messages');
 
-  const tabs = ['all', 'crew', 'my', 'agents', 'org'];
-  for (const t of tabs) {
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+  if (!allMessages.length) {
+    container.innerHTML = '<div class="empty-state">// NO MESSAGES YET //</div>';
+    return;
   }
 
-  const viewKanban = document.getElementById('view-kanban');
-  const viewAgents = document.getElementById('view-agents');
-  const viewOrg    = document.getElementById('view-org');
+  container.innerHTML = '';
+  for (const msg of allMessages) {
+    container.appendChild(buildChatMsg(msg));
+  }
 
-  viewKanban.classList.add('hidden');
-  viewAgents.classList.add('hidden');
-  viewOrg.classList.add('hidden');
+  scrollChatToBottom();
+}
 
-  if (tab === 'agents') {
-    viewAgents.classList.remove('hidden');
-    renderAgents();
-  } else if (tab === 'org') {
-    viewOrg.classList.remove('hidden');
-    buildOrgTree(allAgents);
+function buildChatMsg(msg) {
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.setAttribute('data-msg-id', msg.id);
+  applyAgentColorVars(div, msg.agent_name);
+
+  const initial = getAgentInitial(msg.agent_name);
+  const c = getAgentColor(msg.agent_name);
+  const accent = c ? c.accent : 'var(--text-dim)';
+
+  div.innerHTML = `
+    <div class="chat-msg-avatar">${escHtml(initial)}</div>
+    <div class="chat-msg-body">
+      <div class="chat-msg-header">
+        <span class="chat-msg-name" style="color: ${accent}">${escHtml(msg.agent_name)}</span>
+        <span class="chat-msg-time">${formatDate(msg.created_at)}</span>
+      </div>
+      <div class="chat-msg-text">${escHtml(msg.content)}</div>
+    </div>
+  `;
+  return div;
+}
+
+function appendChatMsg(msg) {
+  const container = document.getElementById('chat-messages');
+
+  // Remove empty state if present
+  const empty = container.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  container.appendChild(buildChatMsg(msg));
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  const container = document.getElementById('chat-messages');
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+function updateMsgBadge() {
+  const badge = document.getElementById('msg-badge');
+  if (!badge) return;
+  if (unreadMessages > 0) {
+    badge.textContent = unreadMessages;
+    badge.style.display = '';
   } else {
-    viewKanban.classList.remove('hidden');
-    renderBoard(filterTasksForTab(allTasks, tab));
+    badge.style.display = 'none';
   }
 }
 
-window.switchTab = switchTab;
+/* ── SSE connection ── */
+function connectSSE() {
+  if (eventSource) eventSource.close();
+
+  const indicator = document.getElementById('live-indicator');
+  const dot = indicator ? indicator.querySelector('.live-dot') : null;
+
+  eventSource = new EventSource(EVENTS_URL);
+
+  eventSource.onopen = () => {
+    if (dot) dot.classList.add('connected');
+  };
+
+  eventSource.addEventListener('agent_update', (e) => {
+    const data = JSON.parse(e.data);
+    const agent = data.agent;
+    const idx = allAgents.findIndex(a => a.id === agent.id);
+    if (idx !== -1) allAgents[idx] = { ...allAgents[idx], ...agent };
+    else allAgents.push(agent);
+
+    if (activeSection === 'dashboard') renderWhosWorking();
+    if (activeSection === 'agents') renderAgents();
+    if (activeSection === 'org') buildOrgTree(allAgents);
+
+    if (agent.current_activity) {
+      logActivity(`<strong>${escHtml(agent.name)}</strong>: ${escHtml(agent.current_activity)}`, 'in_progress');
+    }
+  });
+
+  eventSource.addEventListener('new_message', (e) => {
+    const data = JSON.parse(e.data);
+    const msg = data.message;
+    allMessages.push(msg);
+
+    if (activeSection === 'meeting') {
+      appendChatMsg(msg);
+    } else {
+      unreadMessages++;
+      updateMsgBadge();
+    }
+
+    logActivity(`<strong>${escHtml(msg.agent_name)}</strong> posted in #${escHtml(msg.room)}`, 'in_progress');
+  });
+
+  eventSource.addEventListener('task_update', (e) => {
+    const data = JSON.parse(e.data);
+
+    if (data.action === 'created') {
+      allTasks.unshift(data.task);
+      logActivity(`Task created: <strong>${escHtml(data.task.title)}</strong>`, data.task.status);
+    } else if (data.action === 'updated') {
+      const idx = allTasks.findIndex(t => t.id === data.task.id);
+      if (idx !== -1) allTasks[idx] = data.task;
+      logActivity(`Task updated: <strong>${escHtml(data.task.title)}</strong> → ${statusLabel(data.task.status)}`, data.task.status);
+    } else if (data.action === 'deleted') {
+      allTasks = allTasks.filter(t => t.id !== data.id);
+      logActivity(`Task deleted`, 'in_progress');
+    }
+
+    if (activeSection === 'tasks') renderBoard(filterTasks(allTasks, activeFilter));
+    if (activeSection === 'dashboard') renderDashboard();
+  });
+
+  eventSource.onerror = () => {
+    if (dot) dot.classList.remove('connected');
+    // Reconnect after 5 seconds
+    setTimeout(connectSSE, 5000);
+  };
+}
 
 /* ── Data loading ── */
 async function loadTasks() {
@@ -408,9 +646,6 @@ async function loadTasks() {
     const res = await fetch(TASKS_API);
     if (!res.ok) throw new Error('Failed to fetch tasks');
     allTasks = await res.json();
-    if (['all', 'crew', 'my'].includes(activeTab)) {
-      renderBoard(filterTasksForTab(allTasks, activeTab));
-    }
   } catch (err) {
     console.error('Error loading tasks:', err);
   }
@@ -421,16 +656,36 @@ async function loadAgents() {
     const res = await fetch(AGENTS_API);
     if (!res.ok) throw new Error('Failed to fetch agents');
     allAgents = await res.json();
-    if (activeTab === 'agents') renderAgents();
-    if (activeTab === 'org') buildOrgTree(allAgents);
   } catch (err) {
     console.error('Error loading agents:', err);
   }
 }
 
-async function loadAll() {
-  await Promise.all([loadTasks(), loadAgents()]);
+async function loadMessages() {
+  try {
+    const res = await fetch(`${MESSAGES_API}?room=general&limit=100`);
+    if (!res.ok) throw new Error('Failed to fetch messages');
+    allMessages = await res.json();
+  } catch (err) {
+    console.error('Error loading messages:', err);
+  }
 }
 
-loadAll();
-setInterval(loadAll, 30000);
+async function loadAll() {
+  await Promise.all([loadTasks(), loadAgents(), loadMessages()]);
+  renderDashboard();
+  renderMessages();
+}
+
+/* ── Init ── */
+loadAll().then(() => {
+  connectSSE();
+});
+
+// Periodic full refresh as fallback (every 2 min — SSE handles real-time)
+setInterval(async () => {
+  await Promise.all([loadTasks(), loadAgents()]);
+  if (activeSection === 'dashboard') renderDashboard();
+  if (activeSection === 'tasks') renderBoard(filterTasks(allTasks, activeFilter));
+  if (activeSection === 'agents') renderAgents();
+}, 120000);

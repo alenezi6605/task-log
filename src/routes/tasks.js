@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const sse = require('../sse');
 
 // GET /api/tasks — list all tasks, optional ?status= filter
 router.get('/', (req, res) => {
@@ -40,6 +41,9 @@ router.post('/', (req, res) => {
     );
     const result = stmt.run(title, description || null, status || 'pending', assigned_to || null);
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
+
+    sse.broadcast('task_update', { action: 'created', task });
+
     res.status(201).json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -65,6 +69,9 @@ router.put('/:id', (req, res) => {
     ).run(updated.title, updated.description, updated.status, updated.assigned_to, req.params.id);
 
     const result = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+
+    sse.broadcast('task_update', { action: 'updated', task: result });
+
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -77,6 +84,9 @@ router.delete('/:id', (req, res) => {
     const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
     if (!task) return res.status(404).json({ error: 'Task not found' });
     db.prepare('DELETE FROM tasks WHERE id = ?').run(req.params.id);
+
+    sse.broadcast('task_update', { action: 'deleted', id: parseInt(req.params.id) });
+
     res.json({ message: 'Task deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });

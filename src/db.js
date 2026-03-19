@@ -37,25 +37,61 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'inactive')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_name TEXT NOT NULL,
+    content TEXT NOT NULL,
+    room TEXT NOT NULL DEFAULT 'general',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
+
+// Safe migrations — add columns if they don't exist
+const agentColumns = db.pragma('table_info(agents)').map(c => c.name);
+
+if (!agentColumns.includes('current_activity')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN current_activity TEXT`);
+}
+if (!agentColumns.includes('last_active')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN last_active DATETIME`);
+}
+if (!agentColumns.includes('model')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN model TEXT DEFAULT 'claude-sonnet-4-6'`);
+}
+if (!agentColumns.includes('tagline')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN tagline TEXT`);
+}
+if (!agentColumns.includes('bio')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN bio TEXT`);
+}
+if (!agentColumns.includes('philosophy')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN philosophy TEXT`);
+}
+if (!agentColumns.includes('demands')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN demands TEXT`);
+}
+if (!agentColumns.includes('hates')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN hates TEXT`);
+}
 
 // Seed agents if table is empty
 const agentCount = db.prepare('SELECT COUNT(*) as count FROM agents').get();
 if (agentCount.count === 0) {
   const insertAgent = db.prepare(
-    'INSERT OR IGNORE INTO agents (name, designation, reports_to, status) VALUES (?, ?, ?, ?)'
+    'INSERT OR IGNORE INTO agents (name, designation, reports_to, status, model) VALUES (?, ?, ?, ?, ?)'
   );
   const seedAgents = db.transaction(() => {
-    insertAgent.run('Abdulrahman', 'Owner', null, 'active');
-    insertAgent.run('V', 'CEO', 'Abdulrahman', 'active');
-    insertAgent.run('Aurore', 'CTO', 'V', 'active');
-    insertAgent.run('Judy', 'Designer', 'V', 'active');
-    insertAgent.run('Rex', 'Backend Engineer', 'Aurore', 'active');
-    insertAgent.run('Pixel', 'Frontend Engineer', 'Aurore', 'active');
-    insertAgent.run('Ghost', 'DevOps Engineer', 'Aurore', 'active');
-    insertAgent.run('Zara', 'QA Engineer', 'Aurore', 'active');
-    insertAgent.run('Mia', 'E-commerce Specialist', 'Aurore', 'active');
-    insertAgent.run('Nova', 'Data Analyst', 'Aurore', 'active');
+    insertAgent.run('Abdulrahman', 'Owner', null, 'active', 'claude-sonnet-4-6');
+    insertAgent.run('V', 'CEO', 'Abdulrahman', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Aurore', 'CTO', 'V', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Judy', 'Designer', 'V', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Rex', 'Backend Engineer', 'Aurore', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Pixel', 'Frontend Engineer', 'Aurore', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Ghost', 'DevOps Engineer', 'Aurore', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Zara', 'QA Engineer', 'Aurore', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Mia', 'E-commerce Specialist', 'Aurore', 'active', 'claude-sonnet-4-6');
+    insertAgent.run('Nova', 'Data Analyst', 'Aurore', 'active', 'claude-sonnet-4-6');
   });
   seedAgents();
 }
