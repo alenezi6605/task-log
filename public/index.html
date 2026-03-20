@@ -26,10 +26,9 @@
         <span class="dept-tab-icon">◈</span>
         <span class="dept-tab-label">Design</span>
       </button>
-      <button class="dept-tab dept-tab-tbd" data-dept="commerce" onclick="switchDept('commerce')">
-        <span class="dept-tab-icon">◈</span>
+      <button class="dept-tab" data-dept="commerce" onclick="switchDept('commerce')">
+        <span class="dept-tab-icon">&#9824;</span>
         <span class="dept-tab-label">Commerce</span>
-        <span class="dept-tab-tbd-badge">TBD</span>
       </button>
       <button class="dept-tab dept-tab-tbd" data-dept="analytics" onclick="switchDept('analytics')">
         <span class="dept-tab-icon">◈</span>
@@ -134,23 +133,27 @@
     <!-- Commerce sidebar -->
     <ul class="sidebar-nav dept-nav hidden" id="nav-commerce">
       <li>
-        <button class="nav-item nav-item-coming" data-section="commerce-products" onclick="switchSection('commerce-products')">
-          <span class="nav-icon">◈</span>
+        <button class="nav-item" data-section="commerce-products" onclick="switchSection('commerce-products')">
+          <span class="nav-icon">&#9632;</span>
           <span class="nav-label">Products</span>
-          <span class="nav-badge-coming">Soon</span>
         </button>
       </li>
       <li>
-        <button class="nav-item nav-item-coming" data-section="commerce-inventory" onclick="switchSection('commerce-inventory')">
-          <span class="nav-icon">◈</span>
+        <button class="nav-item" data-section="commerce-inventory" onclick="switchSection('commerce-inventory')">
+          <span class="nav-icon">&#9707;</span>
           <span class="nav-label">Inventory</span>
-          <span class="nav-badge-coming">Soon</span>
         </button>
       </li>
       <li>
-        <button class="nav-item nav-item-coming" data-section="commerce-revenue" onclick="switchSection('commerce-revenue')">
-          <span class="nav-icon">◈</span>
+        <button class="nav-item" data-section="commerce-revenue" onclick="switchSection('commerce-revenue')">
+          <span class="nav-icon">&#9824;</span>
           <span class="nav-label">Revenue</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="commerce-pipeline" onclick="switchSection('commerce-pipeline')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Pipeline</span>
           <span class="nav-badge-coming">Soon</span>
         </button>
       </li>
@@ -437,30 +440,91 @@
       </div>
     </section>
 
-    <!-- ── Commerce Department (Phase 3 placeholder) ── -->
+    <!-- ── Commerce Department ── -->
+
+    <!-- Section: Products -->
     <section class="section hidden" id="section-commerce-products">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
-        <div class="dept-placeholder-title">Products</div>
-        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
+      <div class="section-header">
+        <h1 class="section-title">Products</h1>
+        <div class="task-filter-btns">
+          <button class="filter-btn active" data-product-filter="all" onclick="setProductFilter('all')">All</button>
+          <button class="filter-btn" data-product-filter="active" onclick="setProductFilter('active')">Active</button>
+          <button class="filter-btn" data-product-filter="draft" onclick="setProductFilter('draft')">Draft</button>
+          <button class="filter-btn" data-product-filter="archived" onclick="setProductFilter('archived')">Archived</button>
+        </div>
+      </div>
+      <div class="stat-grid" id="products-stats" style="margin-bottom:20px">
+        <div class="stat-card" style="--bar-color:var(--amber)">
+          <div class="stat-value" id="stat-products-total">—</div>
+          <div class="stat-label">Total Products</div>
+        </div>
+        <div class="stat-card" style="--bar-color:var(--green)">
+          <div class="stat-value" id="stat-products-active">—</div>
+          <div class="stat-label">Active</div>
+        </div>
+        <div class="stat-card" style="--bar-color:var(--red)">
+          <div class="stat-value" id="stat-products-low-stock">—</div>
+          <div class="stat-label">Low Stock</div>
+        </div>
+        <div class="stat-card" style="--bar-color:var(--grey)">
+          <div class="stat-value" id="stat-products-out-of-stock">—</div>
+          <div class="stat-label">Out of Stock</div>
+        </div>
+      </div>
+      <div class="products-grid" id="products-grid">
+        <div class="empty-state">// LOADING PRODUCTS //</div>
       </div>
     </section>
 
+    <!-- Section: Inventory -->
     <section class="section hidden" id="section-commerce-inventory">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
-        <div class="dept-placeholder-title">Inventory</div>
-        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
+      <div class="section-header">
+        <h1 class="section-title">Inventory</h1>
+        <div class="task-filter-btns">
+          <button class="filter-btn active" data-inv-filter="all" onclick="setInventoryFilter('all')">All</button>
+          <button class="filter-btn" data-inv-filter="low_stock" onclick="setInventoryFilter('low_stock')">Low Stock</button>
+        </div>
+      </div>
+      <div class="inventory-table-wrap" id="inventory-table-wrap">
+        <div class="empty-state">// LOADING INVENTORY //</div>
       </div>
     </section>
 
+    <!-- Section: Revenue -->
     <section class="section hidden" id="section-commerce-revenue">
+      <div class="section-header">
+        <h1 class="section-title">Revenue</h1>
+        <span class="section-sub">Snapshots</span>
+      </div>
+      <div class="stat-grid" id="revenue-stats" style="margin-bottom:20px">
+        <div class="stat-card stat-done">
+          <div class="stat-value" id="stat-revenue-today">—</div>
+          <div class="stat-label">Today</div>
+        </div>
+        <div class="stat-card stat-inprogress">
+          <div class="stat-value" id="stat-revenue-30d">—</div>
+          <div class="stat-label">Last 30 Days</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-revenue-orders">—</div>
+          <div class="stat-label">Orders (30d)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-revenue-total">—</div>
+          <div class="stat-label">All Time</div>
+        </div>
+      </div>
+      <div class="revenue-list" id="revenue-list">
+        <div class="empty-state">// NO REVENUE DATA //</div>
+      </div>
+    </section>
+
+    <!-- Pipeline placeholder -->
+    <section class="section hidden" id="section-commerce-pipeline">
       <div class="dept-placeholder">
         <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
-        <div class="dept-placeholder-title">Revenue</div>
-        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
+        <div class="dept-placeholder-title">Pipeline</div>
+        <div class="dept-placeholder-sub">Sales Pipeline — Commerce Department</div>
         <div class="dept-placeholder-status">Coming Soon</div>
       </div>
     </section>
