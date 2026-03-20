@@ -97,7 +97,7 @@ jobs:
             check_body "Agents has id field" "$BASE/api/agents" '"id"'
             check_body "Config has token field" "$BASE/api/config" '"token"'
             check_body "Health returns ok status" "$BASE/health" '"status"'
-            check_body "Homepage has TASK LOG" "$BASE/" "TASK LOG"
+            check_body "Homepage has OPS CORE" "$BASE/" "OPS CORE"
             check "Unknown API route is 404" "$BASE/api/doesnotexist" 404
 
             echo ""
