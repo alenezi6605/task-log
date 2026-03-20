@@ -890,7 +890,9 @@ function buildRoomCard(room) {
 }
 
 async function enterRoom(room) {
-  activeRoomId = room.id;
+  // Do NOT set activeRoomId yet — keep it null so SSE messages arriving during
+  // the fetch are cached (not appended to DOM prematurely via appendRoomMessage).
+  // They will be merged into roomMessages by loadRoomMessages before render.
 
   // Show chat view, hide list view
   const listEl = document.getElementById('meeting-room-list');
@@ -908,10 +910,12 @@ async function enterRoom(room) {
     statusEl.textContent = room.status;
   }
 
-  // Load messages for this room
-  if (!roomMessages[room.id]) {
-    await loadRoomMessages(room.id);
-  }
+  // Always fetch from server — ensures full authoritative history is loaded.
+  // loadRoomMessages also merges any SSE-cached messages so nothing is lost.
+  await loadRoomMessages(room.id);
+
+  // Now safe to set activeRoomId — SSE messages from here on append live.
+  activeRoomId = room.id;
 
   renderRoomMessages(room.id);
 }
@@ -927,10 +931,18 @@ async function loadRoomMessages(roomId) {
   try {
     const res = await authedFetch(`${ROOMS_API}/${roomId}/messages?limit=200`);
     if (!res.ok) throw new Error('Failed to fetch room messages');
-    roomMessages[roomId] = await res.json();
+    const fetched = await res.json();
+    // Merge any SSE-cached messages that arrived during the fetch (dedup by id, sort by id)
+    const existing = roomMessages[roomId] || [];
+    const merged = [...fetched];
+    for (const m of existing) {
+      if (!merged.find(x => x.id === m.id)) merged.push(m);
+    }
+    merged.sort((a, b) => a.id - b.id);
+    roomMessages[roomId] = merged;
   } catch (err) {
     console.error('Error loading room messages:', err);
-    roomMessages[roomId] = [];
+    roomMessages[roomId] = roomMessages[roomId] || [];
   }
 }
 
@@ -1012,11 +1024,25 @@ function appendRoomMessage(msg) {
   const empty = container.querySelector('.empty-state');
   if (empty) empty.remove();
 
-  const msgs = roomMessages[activeRoomId] || [];
-  const prevAgent = msgs.length > 0 ? msgs[msgs.length - 1].agent_name : null;
+  // Derive prevAgent from the last rendered DOM bubble — this is the ground truth
+  // for grouping. The in-memory cache is not reliable here because it may have been
+  // pre-seeded via SSE with messages that were never rendered to the DOM.
+  const lastBubble = container.lastElementChild;
+  let prevAgent = null;
+  if (lastBubble) {
+    const lastMsgId = lastBubble.getAttribute('data-msg-id');
+    if (lastMsgId) {
+      const cache = roomMessages[activeRoomId] || [];
+      const lastRendered = cache.find(m => String(m.id) === String(lastMsgId));
+      if (lastRendered) prevAgent = lastRendered.agent_name;
+    }
+  }
 
   if (!roomMessages[activeRoomId]) roomMessages[activeRoomId] = [];
-  roomMessages[activeRoomId].push(msg);
+  // Dedup — SSE can occasionally deliver the same message twice on reconnect
+  if (!roomMessages[activeRoomId].find(m => m.id === msg.id)) {
+    roomMessages[activeRoomId].push(msg);
+  }
 
   container.appendChild(buildChatBubble(msg, prevAgent));
   scrollChatToBottom();
