@@ -1,10 +1,12 @@
 /* ── Constants ── */
-const TASKS_API     = '/api/tasks';
-const AGENTS_API    = '/api/agents';
-const MESSAGES_API  = '/api/messages';
-const ROOMS_API     = '/api/rooms';
-const ENG_TASKS_API = '/api/eng-tasks';
-const EVENTS_URL    = '/api/events';
+const TASKS_API       = '/api/tasks';
+const AGENTS_API      = '/api/agents';
+const MESSAGES_API    = '/api/messages';
+const ROOMS_API       = '/api/rooms';
+const ENG_TASKS_API   = '/api/eng-tasks';
+const DEPTS_API       = '/api/departments';
+const PROJECTS_API    = '/api/projects';
+const EVENTS_URL      = '/api/events';
 
 /* ── Auth ── */
 let API_TOKEN = '';  // loaded from /api/config on init
@@ -23,18 +25,23 @@ function authedFetch(url, opts = {}) {
 }
 
 /* ── State ── */
+let activeDept      = 'engineering';
 let activeSection   = 'dashboard';
 let activeFilter    = 'all';
+let activeProjFilter = 'all';
+let activeAgentDeptFilter = 'all';
 let allTasks        = [];
 let allAgents       = [];
 let allMessages     = [];
 let allRooms        = [];
 let allEngTasks     = [];
+let allDepts        = [];
+let allProjects     = [];
 let unreadMessages  = 0;
 let eventSource     = null;
 let activityLog     = []; // { text, status, time }
-let agentActivityLog = []; // { agentName, action, time, isoTime } — granular agent steps
-let activeRoomId    = null; // currently viewed room
+let agentActivityLog = []; // { agentName, action, time, isoTime }
+let activeRoomId    = null;
 let roomMessages    = {}; // roomId -> array of messages
 
 /* ── Theme ── */
@@ -201,10 +208,56 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/* ── Department color config ── */
+const DEPT_COLORS = {
+  engineering: '#a855f7',
+  design:      '#ec4899',
+  commerce:    '#f59e0b',
+  analytics:   '#eab308',
+  operations:  '#6b7280',
+  executive:   '#06b6d4'
+};
+
+/* ── Department switching ── */
+function switchDept(dept) {
+  activeDept = dept;
+
+  // Update dept tab active state
+  document.querySelectorAll('.dept-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.dept === dept);
+  });
+
+  // Apply dept color accent to sidebar label
+  const labelEl = document.getElementById('sidebar-dept-label');
+  if (labelEl) {
+    labelEl.textContent = dept.charAt(0).toUpperCase() + dept.slice(1);
+    labelEl.style.color = DEPT_COLORS[dept] || 'var(--text-dim)';
+  }
+
+  // Show correct sidebar nav
+  document.querySelectorAll('.dept-nav').forEach(nav => nav.classList.add('hidden'));
+  const navEl = document.getElementById(`nav-${dept}`);
+  if (navEl) navEl.classList.remove('hidden');
+
+  // Switch to default section for that dept
+  const deptDefaults = {
+    engineering: 'dashboard',
+    operations:  'projects',
+    design:      'design-assets',
+    commerce:    'commerce-products',
+    analytics:   'analytics-kpis',
+    executive:   'exec-overview'
+  };
+  switchSection(deptDefaults[dept] || dept);
+}
+
+window.switchDept = switchDept;
+
 /* ── Section navigation ── */
 function switchSection(section) {
   activeSection = section;
 
+  // Update active nav item in current dept nav
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.section === section);
   });
@@ -224,6 +277,7 @@ function switchSection(section) {
     renderRoomList();
   }
   if (section === 'eng-tasks')   renderEngBoard();
+  if (section === 'projects')    renderProjects();
 
   closeSidebar();
 }
@@ -677,6 +731,8 @@ function openAgentProfile(agent) {
 const VALID_MODELS = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'];
 
 function renderAgents() {
+  buildAgentDeptFilterBtns();
+
   const grid = document.getElementById('agents-grid');
   grid.innerHTML = '';
 
@@ -685,7 +741,20 @@ function renderAgents() {
     return;
   }
 
-  for (const agent of allAgents) {
+  let agents = allAgents;
+  if (activeAgentDeptFilter !== 'all') {
+    agents = agents.filter(a => {
+      const dept = allDepts.find(d => d.id === a.department_id);
+      return dept && dept.name === activeAgentDeptFilter;
+    });
+  }
+
+  if (!agents.length) {
+    grid.innerHTML = '<div class="empty-state">// NO AGENTS IN THIS DEPARTMENT //</div>';
+    return;
+  }
+
+  for (const agent of agents) {
     const card = document.createElement('div');
     card.className = 'agent-card agent-card-clickable';
     applyAgentColorVars(card, agent.name);
@@ -705,6 +774,11 @@ function renderAgents() {
     const avatarInnerHtml = agent.avatar_url
       ? `<img src="${escHtml(agent.avatar_url)}" alt="${escHtml(agent.name)}" class="avatar-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span class="avatar-fallback" style="display:none">${escHtml(initial)}</span>`
       : escHtml(initial);
+
+    const dept = allDepts.find(d => d.id === agent.department_id);
+    const deptBadge = dept
+      ? `<span class="agent-dept-badge" style="background:${dept.color}22;color:${dept.color};border-color:${dept.color}44">${escHtml(dept.name)}</span>`
+      : '';
 
     card.innerHTML = `
       <div class="agent-card-top">
@@ -727,6 +801,7 @@ function renderAgents() {
         <div class="agent-reports">Reports to: <strong>${escHtml(reportsTo)}</strong></div>
         <div class="agent-tasks-count ${taskCount > 0 ? 'has-tasks' : ''}">${taskCount} active task${taskCount !== 1 ? 's' : ''}</div>
       </div>
+      ${deptBadge ? `<div class="agent-dept-row">${deptBadge}</div>` : ''}
       <div class="agent-model-row" onclick="event.stopPropagation()">
         <span class="model-label">Model</span>
         <select class="model-select" data-agent-id="${agent.id}" onchange="updateAgentModel(${agent.id}, this.value, this)">
@@ -737,6 +812,30 @@ function renderAgents() {
     `;
     card.addEventListener('click', () => openAgentProfile(agent));
     grid.appendChild(card);
+  }
+}
+
+/* ── Agent dept filter ── */
+function setAgentDeptFilter(deptFilter) {
+  activeAgentDeptFilter = deptFilter;
+  document.querySelectorAll('[data-dept-filter]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.deptFilter === deptFilter);
+  });
+  renderAgents();
+}
+
+window.setAgentDeptFilter = setAgentDeptFilter;
+
+/* ── Build dynamic dept filter buttons for HR Roster ── */
+function buildAgentDeptFilterBtns() {
+  const container = document.getElementById('agent-dept-filter-btns');
+  if (!container) return;
+  container.innerHTML = `<button class="filter-btn ${activeAgentDeptFilter === 'all' ? 'active' : ''}" data-dept-filter="all" onclick="setAgentDeptFilter('all')">All</button>`;
+  const deptNames = [...new Set(allAgents.map(a => a.department_name || a.department_id).filter(Boolean))];
+  for (const name of deptNames) {
+    const label = typeof name === 'string' ? name : name;
+    const active = activeAgentDeptFilter === label ? 'active' : '';
+    container.innerHTML += `<button class="filter-btn ${active}" data-dept-filter="${escHtml(label)}" onclick="setAgentDeptFilter('${escHtml(label)}')">${escHtml(label)}</button>`;
   }
 }
 
@@ -1154,6 +1253,102 @@ function openEngTaskModal(task) {
   openSlideover(task.title, bodyHtml);
 }
 
+/* ── Projects ── */
+function setProjectFilter(filter) {
+  activeProjFilter = filter;
+  document.querySelectorAll('[data-proj-filter]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.projFilter === filter);
+  });
+  renderProjects();
+}
+
+window.setProjectFilter = setProjectFilter;
+
+function renderProjects() {
+  const grid = document.getElementById('projects-grid');
+  if (!grid) return;
+
+  let projects = allProjects;
+  if (activeProjFilter !== 'all') {
+    projects = projects.filter(p => p.status === activeProjFilter);
+  }
+
+  if (!projects.length) {
+    grid.innerHTML = '<div class="empty-state">// NO PROJECTS //</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  for (const proj of projects) {
+    grid.appendChild(buildProjectCard(proj));
+  }
+}
+
+function buildProjectCard(proj) {
+  const div = document.createElement('div');
+  div.className = 'project-card';
+  div.setAttribute('data-proj-id', proj.id);
+
+  const statusColors = {
+    active:    'proj-status-active',
+    on_hold:   'proj-status-hold',
+    done:      'proj-status-done',
+    cancelled: 'proj-status-cancelled'
+  };
+  const statusClass = statusColors[proj.status] || '';
+  const statusLabels = { active: 'Active', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
+  const statusLabel = statusLabels[proj.status] || proj.status;
+
+  const deptColor = proj.department_color || '#888';
+  const deptName  = proj.department_name  || 'Unassigned';
+
+  div.innerHTML = `
+    <div class="project-card-top">
+      <div class="project-card-title">${escHtml(proj.title)}</div>
+      <span class="project-status-badge ${statusClass}">${escHtml(statusLabel)}</span>
+    </div>
+    ${proj.description ? `<div class="project-card-desc">${escHtml(proj.description)}</div>` : ''}
+    <div class="project-card-meta">
+      <span class="project-dept-badge" style="background:${deptColor}22;color:${deptColor};border-color:${deptColor}44">${escHtml(deptName)}</span>
+      ${proj.lead_agent ? `<span class="badge ${assigneeBadgeClass(proj.lead_agent)}">${escHtml(proj.lead_agent)}</span>` : ''}
+      <span class="project-card-time">${timeAgo(proj.updated_at)}</span>
+    </div>
+  `;
+
+  div.addEventListener('click', () => openProjectDetail(proj));
+  return div;
+}
+
+function openProjectDetail(proj) {
+  const statusLabels = { active: 'Active', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
+  const statusColors = { active: 'proj-status-active', on_hold: 'proj-status-hold', done: 'proj-status-done', cancelled: 'proj-status-cancelled' };
+
+  const bodyHtml = `
+    <div class="slideover-meta">
+      <span class="project-status-badge ${statusColors[proj.status] || ''}">${statusLabels[proj.status] || proj.status}</span>
+      ${proj.lead_agent ? `<span class="badge ${assigneeBadgeClass(proj.lead_agent)}">${escHtml(proj.lead_agent)}</span>` : ''}
+    </div>
+    ${proj.description ? `
+      <div class="slideover-section">
+        <div class="slideover-label">Description</div>
+        <div class="slideover-desc">${escHtml(proj.description)}</div>
+      </div>
+    ` : ''}
+    ${proj.department_name ? `
+      <div class="slideover-section">
+        <div class="slideover-label">Department</div>
+        <div class="slideover-desc">${escHtml(proj.department_name)}</div>
+      </div>
+    ` : ''}
+    <div class="slideover-times">
+      <span>Created: ${formatDate(proj.created_at)}</span>
+      <span>Updated: ${formatDate(proj.updated_at)}</span>
+      <span>ID: #${proj.id}</span>
+    </div>
+  `;
+  openSlideover(proj.title, bodyHtml);
+}
+
 /* ── SSE connection ── */
 let sseHeartbeatTimer = null;  // watchdog timer — reconnects if no heartbeat
 const SSE_HEARTBEAT_TIMEOUT = 45000; // 25s server interval + 20s grace
@@ -1322,10 +1517,26 @@ function connectSSE() {
     if (origOnMsg) origOnMsg(e);
   };
 
+  eventSource.addEventListener('project_update', (e) => {
+    const data = JSON.parse(e.data);
+    const project = data.project;
+    const idx = allProjects.findIndex(p => p.id === project.id);
+    if (idx !== -1) allProjects[idx] = project;
+    else allProjects.unshift(project);
+    if (activeSection === 'projects') renderProjects();
+  });
+
+  eventSource.addEventListener('dept_update', (e) => {
+    const data = JSON.parse(e.data);
+    const dept = data.department;
+    const idx = allDepts.findIndex(d => d.id === dept.id);
+    if (idx !== -1) allDepts[idx] = dept;
+  });
+
   // Also reset on named events (agent_update, new_message, etc.)
-  ['agent_update', 'new_message', 'task_update', 'eng_task_update', 'room_update'].forEach(evtName => {
-    const existingListener = eventSource['_listener_' + evtName];
-    // The resetHeartbeatWatchdog is added via a wrapper in addEventListener below
+  ['agent_update', 'new_message', 'task_update', 'eng_task_update', 'room_update', 'project_update', 'dept_update'].forEach(evtName => {
+    // Heartbeat reset is handled by the onmessage + named event listeners above
+    void evtName;
   });
 
   eventSource.onerror = () => {
@@ -1387,6 +1598,26 @@ async function loadEngTasks() {
   }
 }
 
+async function loadDepts() {
+  try {
+    const res = await authedFetch(DEPTS_API);
+    if (!res.ok) throw new Error('Failed to fetch departments');
+    allDepts = await res.json();
+  } catch (err) {
+    console.error('Error loading departments:', err);
+  }
+}
+
+async function loadProjects() {
+  try {
+    const res = await authedFetch(PROJECTS_API);
+    if (!res.ok) throw new Error('Failed to fetch projects');
+    allProjects = await res.json();
+  } catch (err) {
+    console.error('Error loading projects:', err);
+  }
+}
+
 async function loadAll() {
   // Skeletons go inside list containers only — never replace column structure
   const skCard = '<div class="skeleton-card"><div class="skeleton skeleton-line-lg skeleton-w-3-4"></div><div class="skeleton skeleton-line skeleton-w-full"></div><div class="skeleton skeleton-line-sm skeleton-w-1-2"></div></div>'.repeat(3);
@@ -1395,11 +1626,12 @@ async function loadAll() {
   const agentsGrid = document.getElementById('agents-grid');
   if (agentsGrid && !allAgents.length) agentsGrid.innerHTML = buildAgentsSkeleton();
 
-  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects()]);
   renderDashboard();
   renderBoard(filterTasks(allTasks, activeFilter));
   renderEngBoard();
   renderAgents();
+  renderProjects();
 }
 
 /* ── Config load ── */
@@ -1424,10 +1656,11 @@ loadConfig().then(() => {
 
 // Periodic full refresh as fallback (every 2 min)
 setInterval(async () => {
-  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks()]);
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects()]);
   if (activeSection === 'dashboard') renderDashboard();
   if (activeSection === 'tasks') renderBoard(filterTasks(allTasks, activeFilter));
   if (activeSection === 'agents') renderAgents();
   if (activeSection === 'eng-tasks') renderEngBoard();
   if (activeSection === 'meeting' && !activeRoomId) renderRoomList();
+  if (activeSection === 'projects') renderProjects();
 }, 120000);

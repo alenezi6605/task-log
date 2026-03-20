@@ -16,6 +16,8 @@ const agentsRouter = require('./routes/agents');
 const messagesRouter = require('./routes/messages');
 const roomsRouter = require('./routes/rooms');
 const engTasksRouter = require('./routes/eng-tasks');
+const departmentsRouter = require('./routes/departments');
+const projectsRouter = require('./routes/projects');
 
 // Bootstrap config endpoint — no auth, returns token for browser to use.
 // This is intentional: the app is single-user/internal. The token gates
@@ -70,6 +72,8 @@ app.use('/api/agents', requireAuth, agentsRouter);
 app.use('/api/messages', requireAuth, messagesRouter);
 app.use('/api/rooms', requireAuth, roomsRouter);
 app.use('/api/eng-tasks', requireAuth, engTasksRouter);
+app.use('/api/departments', requireAuth, departmentsRouter);
+app.use('/api/projects', requireAuth, projectsRouter);
 
 // SSE endpoint — no auth header possible from EventSource, but token is
 // validated via query param as a fallback when API_TOKEN is set

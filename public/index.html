@@ -3,17 +3,67 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TASK LOG</title>
+  <title>OPS CORE</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+  <!-- Department top bar -->
+  <div class="dept-topbar" id="dept-topbar">
+    <div class="dept-topbar-brand">
+      <span class="brand-title">OPS CORE</span>
+    </div>
+    <div class="dept-tabs" id="dept-tabs">
+      <button class="dept-tab active" data-dept="engineering" onclick="switchDept('engineering')">
+        <span class="dept-tab-icon">⚙</span>
+        <span class="dept-tab-label">Engineering</span>
+      </button>
+      <button class="dept-tab" data-dept="operations" onclick="switchDept('operations')">
+        <span class="dept-tab-icon">◈</span>
+        <span class="dept-tab-label">Operations</span>
+      </button>
+      <button class="dept-tab" data-dept="design" onclick="switchDept('design')">
+        <span class="dept-tab-icon">◈</span>
+        <span class="dept-tab-label">Design</span>
+      </button>
+      <button class="dept-tab dept-tab-tbd" data-dept="commerce" onclick="switchDept('commerce')">
+        <span class="dept-tab-icon">◈</span>
+        <span class="dept-tab-label">Commerce</span>
+        <span class="dept-tab-tbd-badge">TBD</span>
+      </button>
+      <button class="dept-tab dept-tab-tbd" data-dept="analytics" onclick="switchDept('analytics')">
+        <span class="dept-tab-icon">◈</span>
+        <span class="dept-tab-label">Analytics</span>
+        <span class="dept-tab-tbd-badge">TBD</span>
+      </button>
+      <button class="dept-tab" data-dept="executive" onclick="switchDept('executive')">
+        <span class="dept-tab-icon">◈</span>
+        <span class="dept-tab-label">Executive</span>
+      </button>
+    </div>
+    <div class="dept-topbar-controls">
+      <div class="live-indicator" id="live-indicator">
+        <span class="live-dot"></span>
+        <span class="live-label">LIVE</span>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
+        <span class="theme-icon" id="theme-icon">◑</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile sidebar toggle -->
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">&#9776;</button>
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <!-- Sidebar Navigation -->
   <nav class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-      <span class="brand-title">TASK LOG</span>
-    </div>
-    <ul class="sidebar-nav">
+    <div class="sidebar-dept-label" id="sidebar-dept-label">Engineering</div>
+
+    <!-- Engineering sidebar -->
+    <ul class="sidebar-nav dept-nav" id="nav-engineering">
       <li>
         <button class="nav-item active" data-section="dashboard" onclick="switchSection('dashboard')">
           <span class="nav-icon">&#9632;</span>
@@ -29,7 +79,7 @@
       <li>
         <button class="nav-item" data-section="agents" onclick="switchSection('agents')">
           <span class="nav-icon">&#9824;</span>
-          <span class="nav-label">Agents</span>
+          <span class="nav-label">HR Roster</span>
         </button>
       </li>
       <li>
@@ -39,38 +89,125 @@
         </button>
       </li>
       <li>
-        <button class="nav-item" data-section="meeting" onclick="switchSection('meeting')">
-          <span class="nav-icon">&#9993;</span>
-          <span class="nav-label">Meeting Room</span>
-          <span class="nav-badge" id="msg-badge" style="display:none">0</span>
-        </button>
-      </li>
-      <li>
         <button class="nav-item" data-section="eng-tasks" onclick="switchSection('eng-tasks')">
           <span class="nav-icon">&#9881;</span>
           <span class="nav-label">Eng Tasks</span>
         </button>
       </li>
     </ul>
+
+    <!-- Operations sidebar -->
+    <ul class="sidebar-nav dept-nav hidden" id="nav-operations">
+      <li>
+        <button class="nav-item" data-section="projects" onclick="switchSection('projects')">
+          <span class="nav-icon">&#9672;</span>
+          <span class="nav-label">Projects</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="meeting" onclick="switchSection('meeting')">
+          <span class="nav-icon">&#9993;</span>
+          <span class="nav-label">Meeting Rooms</span>
+          <span class="nav-badge" id="msg-badge" style="display:none">0</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Design sidebar -->
+    <ul class="sidebar-nav dept-nav hidden" id="nav-design">
+      <li>
+        <button class="nav-item nav-item-coming" data-section="design-assets" onclick="switchSection('design-assets')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Asset Library</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="design-briefs" onclick="switchSection('design-briefs')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Brief Board</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Commerce sidebar -->
+    <ul class="sidebar-nav dept-nav hidden" id="nav-commerce">
+      <li>
+        <button class="nav-item nav-item-coming" data-section="commerce-products" onclick="switchSection('commerce-products')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Products</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="commerce-inventory" onclick="switchSection('commerce-inventory')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Inventory</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="commerce-revenue" onclick="switchSection('commerce-revenue')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Revenue</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Analytics sidebar -->
+    <ul class="sidebar-nav dept-nav hidden" id="nav-analytics">
+      <li>
+        <button class="nav-item nav-item-coming" data-section="analytics-kpis" onclick="switchSection('analytics-kpis')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Company KPIs</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="analytics-velocity" onclick="switchSection('analytics-velocity')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Eng Velocity</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Executive sidebar -->
+    <ul class="sidebar-nav dept-nav hidden" id="nav-executive">
+      <li>
+        <button class="nav-item nav-item-coming" data-section="exec-overview" onclick="switchSection('exec-overview')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Company Overview</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="exec-departments" onclick="switchSection('exec-departments')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Dept Status</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item nav-item-coming" data-section="exec-chain" onclick="switchSection('exec-chain')">
+          <span class="nav-icon">◈</span>
+          <span class="nav-label">Chain of Command</span>
+          <span class="nav-badge-coming">Soon</span>
+        </button>
+      </li>
+    </ul>
+
     <div class="sidebar-footer">
-      <div class="live-indicator" id="live-indicator">
-        <span class="live-dot"></span>
-        <span class="live-label">LIVE</span>
-      </div>
-      <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
-        <span class="theme-icon" id="theme-icon">◑</span>
-      </button>
+      <span class="sidebar-version">v2.0 ERP</span>
     </div>
   </nav>
 
-  <!-- Mobile sidebar toggle -->
-  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">&#9776;</button>
-
-  <!-- Sidebar overlay — closes sidebar when tapped on mobile -->
-  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
-
   <!-- Main content -->
   <div class="main-wrap" id="main-wrap">
+
+    <!-- ── Engineering Department ── -->
 
     <!-- Section: Dashboard -->
     <section class="section" id="section-dashboard">
@@ -79,7 +216,6 @@
         <span class="section-sub" id="dashboard-time"></span>
       </div>
 
-      <!-- Stat cards -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-value" id="stat-active-agents">—</div>
@@ -99,9 +235,7 @@
         </div>
       </div>
 
-      <!-- Two-panel row -->
       <div class="dashboard-panels">
-        <!-- Who's working -->
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">Who's Working</span>
@@ -112,7 +246,6 @@
           </div>
         </div>
 
-        <!-- Activity feed -->
         <div class="panel">
           <div class="panel-header">
             <span class="panel-title">Activity Feed</span>
@@ -123,7 +256,6 @@
         </div>
       </div>
 
-      <!-- Agent Activity Feed — full-width, granular step log -->
       <div class="dashboard-panels dashboard-panels-full" style="margin-top:16px">
         <div class="panel panel-full">
           <div class="panel-header">
@@ -175,10 +307,13 @@
       </div>
     </section>
 
-    <!-- Section: Agents -->
+    <!-- Section: HR Roster (Agents) -->
     <section class="section hidden" id="section-agents">
       <div class="section-header">
-        <h1 class="section-title">Agents</h1>
+        <h1 class="section-title">HR Roster</h1>
+        <div class="task-filter-btns" id="agent-dept-filter-btns">
+          <button class="filter-btn active" data-dept-filter="all" onclick="setAgentDeptFilter('all')">All</button>
+        </div>
       </div>
       <div class="agents-grid" id="agents-grid"></div>
     </section>
@@ -190,38 +325,6 @@
       </div>
       <div class="org-container">
         <div class="org-tree" id="org-tree"></div>
-      </div>
-    </section>
-
-    <!-- Section: Meeting Room — Room List -->
-    <section class="section hidden" id="section-meeting">
-      <div class="section-header" id="meeting-list-header">
-        <h1 class="section-title">Meeting Room</h1>
-        <span class="section-sub">All Rooms</span>
-      </div>
-
-      <!-- Room list view -->
-      <div id="meeting-room-list">
-        <div class="room-list" id="room-list">
-          <div class="empty-state">// LOADING ROOMS //</div>
-        </div>
-      </div>
-
-      <!-- Room chat view (hidden by default) -->
-      <div id="meeting-room-chat" class="hidden">
-        <div class="room-chat-header">
-          <button class="room-back-btn" onclick="exitRoom()">&#8592; Rooms</button>
-          <div class="room-chat-title" id="room-chat-title">Room</div>
-          <span class="room-status-badge" id="room-chat-status-badge"></span>
-        </div>
-        <div class="chat-wrap">
-          <div class="chat-messages" id="chat-messages">
-            <div class="empty-state">// NO MESSAGES YET //</div>
-          </div>
-          <div class="chat-observer-notice">
-            Observer mode — read only
-          </div>
-        </div>
       </div>
     </section>
 
@@ -267,19 +370,161 @@
       </div>
     </section>
 
+    <!-- ── Operations Department ── -->
+
+    <!-- Section: Projects -->
+    <section class="section hidden" id="section-projects">
+      <div class="section-header">
+        <h1 class="section-title">Projects</h1>
+        <div class="task-filter-btns">
+          <button class="filter-btn active" data-proj-filter="all" onclick="setProjectFilter('all')">All</button>
+          <button class="filter-btn" data-proj-filter="active" onclick="setProjectFilter('active')">Active</button>
+          <button class="filter-btn" data-proj-filter="on_hold" onclick="setProjectFilter('on_hold')">On Hold</button>
+          <button class="filter-btn" data-proj-filter="done" onclick="setProjectFilter('done')">Done</button>
+        </div>
+      </div>
+      <div class="projects-grid" id="projects-grid">
+        <div class="empty-state">// LOADING PROJECTS //</div>
+      </div>
+    </section>
+
+    <!-- Section: Meeting Room -->
+    <section class="section hidden" id="section-meeting">
+      <div class="section-header" id="meeting-list-header">
+        <h1 class="section-title">Meeting Rooms</h1>
+        <span class="section-sub">All Rooms</span>
+      </div>
+
+      <div id="meeting-room-list">
+        <div class="room-list" id="room-list">
+          <div class="empty-state">// LOADING ROOMS //</div>
+        </div>
+      </div>
+
+      <div id="meeting-room-chat" class="hidden">
+        <div class="room-chat-header">
+          <button class="room-back-btn" onclick="exitRoom()">&#8592; Rooms</button>
+          <div class="room-chat-title" id="room-chat-title">Room</div>
+          <span class="room-status-badge" id="room-chat-status-badge"></span>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-messages" id="chat-messages">
+            <div class="empty-state">// NO MESSAGES YET //</div>
+          </div>
+          <div class="chat-observer-notice">
+            Observer mode — read only
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Design Department (Phase 5 placeholder) ── -->
+    <section class="section hidden" id="section-design-assets">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--pink)">◈</div>
+        <div class="dept-placeholder-title">Asset Library</div>
+        <div class="dept-placeholder-sub">Phase 5 — Design Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-design-briefs">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--pink)">◈</div>
+        <div class="dept-placeholder-title">Brief Board</div>
+        <div class="dept-placeholder-sub">Phase 5 — Design Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <!-- ── Commerce Department (Phase 3 placeholder) ── -->
+    <section class="section hidden" id="section-commerce-products">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
+        <div class="dept-placeholder-title">Products</div>
+        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-commerce-inventory">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
+        <div class="dept-placeholder-title">Inventory</div>
+        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-commerce-revenue">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
+        <div class="dept-placeholder-title">Revenue</div>
+        <div class="dept-placeholder-sub">Phase 3 — Commerce Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <!-- ── Analytics Department (Phase 4 placeholder) ── -->
+    <section class="section hidden" id="section-analytics-kpis">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--yellow)">◈</div>
+        <div class="dept-placeholder-title">Company KPIs</div>
+        <div class="dept-placeholder-sub">Phase 4 — Analytics Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-analytics-velocity">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--yellow)">◈</div>
+        <div class="dept-placeholder-title">Eng Velocity</div>
+        <div class="dept-placeholder-sub">Phase 4 — Analytics Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <!-- ── Executive Department (Phase 6 placeholder) ── -->
+    <section class="section hidden" id="section-exec-overview">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
+        <div class="dept-placeholder-title">Company Overview</div>
+        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-exec-departments">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
+        <div class="dept-placeholder-title">Department Status</div>
+        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
+    <section class="section hidden" id="section-exec-chain">
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
+        <div class="dept-placeholder-title">Chain of Command</div>
+        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
+        <div class="dept-placeholder-status">Coming Soon</div>
+      </div>
+    </section>
+
   </div>
 
-  <!-- Slide-over panel (task / eng task detail) -->
+  <!-- Slide-over panel -->
   <div class="slideover-overlay" id="slideover-overlay" onclick="closeSlideover()"></div>
   <div class="slideover" id="slideover">
     <div class="slideover-header">
-      <div class="slideover-title" id="slideover-title">Task Detail</div>
+      <div class="slideover-title" id="slideover-title">Detail</div>
       <button class="slideover-close" id="slideover-close" onclick="closeSlideover()">&times;</button>
     </div>
     <div class="slideover-body" id="slideover-body"></div>
   </div>
 
-  <!-- Task detail modal (kept for agent profile — profile uses modal) -->
+  <!-- Agent profile modal -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal" id="modal">
       <button class="modal-close" id="modal-close">&times;</button>

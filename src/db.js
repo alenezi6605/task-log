@@ -11,6 +11,9 @@ if (!fs.existsSync(DATA_DIR)) {
 const DB_PATH = path.join(DATA_DIR, 'tasks.db');
 const db = new Database(DB_PATH);
 
+// Enable WAL mode for better concurrent read performance
+db.pragma('journal_mode = WAL');
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,10 +81,44 @@ db.exec(`
     BEGIN
       UPDATE eng_tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
     END;
+
+  CREATE TABLE IF NOT EXISTS departments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL UNIQUE,
+    color TEXT NOT NULL DEFAULT '#888888',
+    icon TEXT,
+    lead_agent TEXT,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'tbd', 'inactive')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    department_id INTEGER REFERENCES departments(id),
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'on_hold', 'done', 'cancelled')),
+    lead_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TRIGGER IF NOT EXISTS update_projects_updated_at
+    AFTER UPDATE ON projects
+    FOR EACH ROW
+    BEGIN
+      UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+    END;
 `);
 
 // Safe migrations — add columns if they don't exist
 const agentColumns = db.pragma('table_info(agents)').map(c => c.name);
+
+if (!agentColumns.includes('department_id')) {
+  db.exec(`ALTER TABLE agents ADD COLUMN department_id INTEGER REFERENCES departments(id)`);
+}
 
 if (!agentColumns.includes('current_activity')) {
   db.exec(`ALTER TABLE agents ADD COLUMN current_activity TEXT`);
@@ -293,6 +330,47 @@ const avatarData = {
 const upsertAvatar = db.prepare(`UPDATE agents SET avatar_url = ? WHERE name = ? AND avatar_url IS NULL`);
 for (const [name, url] of Object.entries(avatarData)) {
   if (url) upsertAvatar.run(url, name);
+}
+
+// Seed departments if empty
+const deptCount = db.prepare('SELECT COUNT(*) as count FROM departments').get();
+if (deptCount.count === 0) {
+  const insertDept = db.prepare(
+    'INSERT OR IGNORE INTO departments (name, slug, color, icon, lead_agent, description, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  const seedDepts = db.transaction(() => {
+    insertDept.run('Engineering', 'engineering', '#a855f7', '⚙', 'Aurore', 'Architecture, code, infrastructure, and technical operations.', 'active');
+    insertDept.run('Design', 'design', '#ec4899', '◈', 'Judy', 'Visual design, asset production, and creative direction.', 'active');
+    insertDept.run('Commerce', 'commerce', '#f59e0b', '◈', null, 'Product catalog, inventory, revenue, and sales pipeline.', 'tbd');
+    insertDept.run('Analytics', 'analytics', '#eab308', '◈', null, 'Company KPIs, commerce analytics, and engineering velocity.', 'tbd');
+    insertDept.run('Operations', 'operations', '#6b7280', '◈', 'Aurore', 'Project management, team coordination, and meeting rooms.', 'active');
+    insertDept.run('Executive', 'executive', '#06b6d4', '◈', 'V', 'Company dashboard, department status, and chain of command.', 'active');
+  });
+  seedDepts();
+}
+
+// Assign agents to departments if not yet assigned
+const agentDeptMap = {
+  V:           'Executive',
+  Abdulrahman: 'Executive',
+  Aurore:      'Engineering',
+  Judy:        'Design',
+  Rex:         'Engineering',
+  Pixel:       'Engineering',
+  Ghost:       'Engineering',
+  Zara:        'Engineering',
+  Mia:         'Commerce',
+  Nova:        'Analytics'
+};
+
+for (const [agentName, deptName] of Object.entries(agentDeptMap)) {
+  const agent = db.prepare('SELECT id, department_id FROM agents WHERE name = ?').get(agentName);
+  if (agent && agent.department_id === null) {
+    const dept = db.prepare('SELECT id FROM departments WHERE name = ?').get(deptName);
+    if (dept) {
+      db.prepare('UPDATE agents SET department_id = ? WHERE id = ?').run(dept.id, agent.id);
+    }
+  }
 }
 
 // Seed eng_tasks if empty
