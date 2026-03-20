@@ -2425,287 +2425,113 @@ body {
   text-transform: uppercase;
 }
 
-/* ── Commerce: Products Grid ── */
-.products-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
+/* ── Executive Dashboard ── */
+.exec-stat-grid {
+  grid-template-columns: repeat(5, 1fr);
 }
 
-.product-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius);
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color var(--transition), box-shadow var(--transition);
+.exec-stat-card {
+  padding: 14px 16px;
 }
 
-.product-card:hover {
-  border-color: rgba(245,158,11,0.3);
-  box-shadow: 0 4px 20px rgba(245,158,11,0.08);
+.exec-stat-card::before {
+  background: var(--bar-color, var(--cyan));
 }
 
-.product-card-img {
-  width: 100%;
-  aspect-ratio: 4/3;
-  overflow: hidden;
-  background: var(--bg-column);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.product-card-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.product-card-img-placeholder {
-  width: 100%;
-  aspect-ratio: 4/3;
-  background: var(--bg-column);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  letter-spacing: 1px;
-}
-
-.product-card-body {
-  padding: 12px 14px;
-}
-
-.product-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.product-card-name {
-  font-weight: bold;
-  font-size: 13px;
-  color: var(--text-bright);
-  line-height: 1.3;
-  flex: 1;
-}
-
-.product-card-sku {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-bottom: 2px;
-}
-
-.product-card-cat {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--amber);
-  margin-bottom: 8px;
-  letter-spacing: 0.5px;
-}
-
-.product-card-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.product-card-price {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: bold;
-  color: var(--green);
-}
-
-.product-card-qty {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* ── Inventory badges ── */
-.inv-low-badge {
-  display: inline-flex;
-  padding: 1px 5px;
-  background: rgba(255,179,0,0.15);
-  color: var(--amber);
-  border: 1px solid rgba(255,179,0,0.3);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
-}
-
-.inv-out-badge {
-  display: inline-flex;
-  padding: 1px 5px;
-  background: rgba(255,61,74,0.12);
-  color: var(--red);
-  border: 1px solid rgba(255,61,74,0.25);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 8px;
-  font-weight: bold;
-  letter-spacing: 0.5px;
-}
-
-/* ── Inventory Table ── */
-.inventory-table-wrap {
-  overflow-x: auto;
-}
-
-.inv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.inv-th {
-  text-align: left;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
+.exec-section-label {
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 2px;
   color: var(--text-dim);
   text-transform: uppercase;
-  white-space: nowrap;
+  margin-bottom: 10px;
+  margin-top: 4px;
 }
 
-.inv-td {
-  padding: 10px 12px;
+.exec-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
   border-bottom: 1px solid var(--border);
-  vertical-align: middle;
 }
 
-.inv-row:hover .inv-td {
-  background: var(--bg-card);
-}
+.exec-activity-item:last-child { border-bottom: none; }
 
-.inv-row-low .inv-td {
-  background: rgba(255,179,0,0.03);
-}
-
-.inv-name {
-  font-weight: 600;
-  color: var(--text-bright);
-  font-size: 13px;
-}
-
-.inv-sku {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
-.inv-qty {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--text-bright);
-  margin-right: 4px;
-}
-
-.inv-thumb {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-}
-
-.inv-thumb-placeholder {
-  width: 44px;
-  height: 44px;
-  background: var(--bg-column);
-  border-radius: var(--radius-sm);
+.exec-activity-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  border: 2px solid var(--agent-accent, var(--border));
+  background: var(--agent-accent-bg, var(--bg-column));
+  color: var(--agent-accent, var(--text-dim));
+}
+
+.exec-activity-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.exec-activity-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.exec-activity-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.exec-activity-time {
+  font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-dim);
+  margin-left: auto;
 }
 
-.inv-td-img {
-  width: 60px;
-  padding-right: 4px;
-}
-
-.inv-td-qty {
-  white-space: nowrap;
-}
-
-/* ── Revenue ── */
-.revenue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.revenue-row {
-  display: grid;
-  grid-template-columns: 120px 1fr 1fr 1fr;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
-  transition: background var(--transition);
-}
-
-.revenue-row:last-child { border-bottom: none; }
-
-.revenue-row:hover { background: var(--bg-card); }
-
-.revenue-date {
-  font-family: var(--font-mono);
+.exec-activity-action {
   font-size: 11px;
   color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.revenue-amount {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: bold;
-  color: var(--green);
+.exec-system-panel {
+  padding: 16px;
 }
 
-.revenue-orders {
-  font-size: 12px;
-  color: var(--text);
+.exec-system-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.revenue-source {
+.exec-system-row:last-child { border-bottom: none; }
+
+.exec-system-label {
   font-family: var(--font-mono);
   font-size: 10px;
+  letter-spacing: 1.5px;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
-.revenue-notes {
-  grid-column: 1 / -1;
+.exec-system-value {
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--text-dim);
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
+  color: var(--text-bright);
 }
 
 /* ── Mobile ERP adjustments ── */

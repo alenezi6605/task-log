@@ -112,56 +112,9 @@ db.exec(`
       UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
     END;
 
-  CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sku TEXT UNIQUE,
-    name TEXT NOT NULL,
-    description TEXT,
-    category TEXT,
-    price REAL,
-    cost REAL,
-    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
-    cloudinary_public_id TEXT,
-    cloudinary_url TEXT,
-    tags TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TRIGGER IF NOT EXISTS update_products_updated_at
-    AFTER UPDATE ON products
-    FOR EACH ROW
-    BEGIN
-      UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-    END;
-
-  CREATE TABLE IF NOT EXISTS inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    quantity INTEGER NOT NULL DEFAULT 0,
-    reserved INTEGER NOT NULL DEFAULT 0,
-    location TEXT,
-    low_stock_threshold INTEGER DEFAULT 5,
-    notes TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TRIGGER IF NOT EXISTS update_inventory_updated_at
-    AFTER UPDATE ON inventory
-    FOR EACH ROW
-    BEGIN
-      UPDATE inventory SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
-    END;
-
-  CREATE TABLE IF NOT EXISTS revenue_snapshots (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL,
-    revenue REAL NOT NULL DEFAULT 0,
-    orders INTEGER NOT NULL DEFAULT 0,
-    source TEXT DEFAULT 'manual',
-    notes TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+  -- Commerce tables (products, inventory, revenue_snapshots) removed.
+  -- They remain in any existing DB from previous deployment but are no longer managed.
+  -- Commerce is TBD — no business data in this internal tool.
 `);
 
 // Safe migrations — add columns if they don't exist
