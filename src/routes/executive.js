@@ -100,4 +100,73 @@ router.get('/summary', (req, res) => {
   }
 });
 
+// GET /api/executive/intelligence — velocity and bottlenecks, read-only
+router.get('/intelligence', (req, res) => {
+  try {
+    // Velocity: tasks completed this week vs last week
+    const now = new Date();
+    const startOfThisWeek = new Date(now);
+    startOfThisWeek.setDate(now.getDate() - now.getDay());
+    startOfThisWeek.setHours(0, 0, 0, 0);
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfThisWeek.getDate() - 7);
+
+    const thisWeekDone = db.prepare(`
+      SELECT COUNT(*) as count FROM tasks
+      WHERE status = 'done' AND updated_at >= ?
+    `).get(startOfThisWeek.toISOString());
+
+    const lastWeekDone = db.prepare(`
+      SELECT COUNT(*) as count FROM tasks
+      WHERE status = 'done' AND updated_at >= ? AND updated_at < ?
+    `).get(startOfLastWeek.toISOString(), startOfThisWeek.toISOString());
+
+    const delta = thisWeekDone.count - lastWeekDone.count;
+    const trend = delta > 0 ? 'up' : (delta < 0 ? 'down' : 'flat');
+
+    // Bottlenecks: in_progress tasks that haven't been updated in 48+ hours
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const bottlenecks = db.prepare(`
+      SELECT id, title, assigned_to, updated_at
+      FROM tasks
+      WHERE status = 'in_progress' AND updated_at < ?
+      ORDER BY updated_at ASC
+      LIMIT 3
+    `).all(fortyEightHoursAgo);
+
+    const bottleneckItems = bottlenecks.map(t => {
+      const daysStuck = Math.floor((Date.now() - new Date(t.updated_at).getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id:          t.id,
+        title:       t.title,
+        assigned_to: t.assigned_to,
+        days_stuck:  daysStuck
+      };
+    });
+
+    // Workload: count of active tasks per agent
+    const workload = db.prepare(`
+      SELECT assigned_to as agent_name, COUNT(*) as active_task_count
+      FROM tasks
+      WHERE status = 'in_progress' AND assigned_to IS NOT NULL
+      GROUP BY assigned_to
+      ORDER BY active_task_count DESC
+    `).all();
+
+    res.json({
+      velocity: {
+        this_week: thisWeekDone.count,
+        last_week: lastWeekDone.count,
+        delta,
+        trend
+      },
+      bottlenecks: bottleneckItems,
+      workload,
+      generated_at: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -244,11 +244,11 @@ function switchDept(dept) {
   // Switch to default section for that dept
   const deptDefaults = {
     engineering: 'dashboard',
-    operations:  'projects',
-    design:      'design-assets',
+    operations:  'ops-pipeline',
+    design:      'design-studio',
     commerce:    'analytics-kpis',
     analytics:   'analytics-kpis',
-    executive:   'exec-summary'
+    executive:   'exec-crew'
   };
   switchSection(deptDefaults[dept] || dept);
 }
@@ -269,18 +269,26 @@ function switchSection(section) {
   const target = document.getElementById(`section-${section}`);
   if (target) target.classList.remove('hidden');
 
-  if (section === 'dashboard')   renderDashboard();
-  if (section === 'tasks')       renderBoard(filterTasks(allTasks, activeFilter));
-  if (section === 'agents')      renderAgents();
-  if (section === 'org')         buildOrgTree(allAgents);
-  if (section === 'meeting') {
+  if (section === 'dashboard')        renderDashboard();
+  if (section === 'tasks')            renderBoard(filterTasks(allTasks, activeFilter));
+  if (section === 'agents')           renderAgents();
+  if (section === 'org')              buildOrgTree(allAgents);
+  if (section === 'eng-tasks')        renderEngBoard();
+  if (section === 'eng-live-feed')    renderLiveFeed();
+  if (section === 'ops-pipeline')     renderPipeline();
+  if (section === 'ops-comms') {
     unreadMessages = 0;
     updateMsgBadge();
-    renderRoomList();
+    renderCommsRoomList();
+    requestAnimationFrame(() => scrollCommsChatToBottom());
   }
-  if (section === 'eng-tasks')   renderEngBoard();
-  if (section === 'projects')    renderProjects();
-  if (section === 'exec-summary') loadExecutiveSummary();
+  if (section === 'ops-gig-log')      renderGigLog();
+  if (section === 'design-studio')    renderDesignStudio();
+  if (section === 'exec-crew')        renderCrewTiles();
+  if (section === 'exec-intelligence') loadExecutiveIntelligence();
+  if (section === 'exec-summary')     loadExecutiveSummary();
+  // Legacy sections kept for backward compat
+  if (section === 'projects')         renderProjects();
 
   closeSidebar();
 }
@@ -1066,7 +1074,7 @@ function renderRoomMessages(roomId) {
     prevAgent = msg.agent_name;
   }
 
-  scrollChatToBottom();
+  requestAnimationFrame(() => scrollChatToBottom());
 }
 
 /* ── Chat Bubble (new Slack-style design) ── */
@@ -1263,6 +1271,7 @@ function setProjectFilter(filter) {
     btn.classList.toggle('active', btn.dataset.projFilter === filter);
   });
   renderProjects();
+  renderPipeline();
 }
 
 window.setProjectFilter = setProjectFilter;
@@ -1294,12 +1303,14 @@ function buildProjectCard(proj) {
 
   const statusColors = {
     active:    'proj-status-active',
+    planning:  'proj-status-planning',
+    blocked:   'proj-status-blocked',
     on_hold:   'proj-status-hold',
     done:      'proj-status-done',
     cancelled: 'proj-status-cancelled'
   };
   const statusClass = statusColors[proj.status] || '';
-  const statusLabels = { active: 'Active', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
+  const statusLabels = { active: 'Active', planning: 'Planning', blocked: 'Blocked', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
   const statusLabel = statusLabels[proj.status] || proj.status;
 
   const deptColor = proj.department_color || '#888';
@@ -1323,8 +1334,8 @@ function buildProjectCard(proj) {
 }
 
 function openProjectDetail(proj) {
-  const statusLabels = { active: 'Active', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
-  const statusColors = { active: 'proj-status-active', on_hold: 'proj-status-hold', done: 'proj-status-done', cancelled: 'proj-status-cancelled' };
+  const statusLabels = { active: 'Active', planning: 'Planning', blocked: 'Blocked', on_hold: 'On Hold', done: 'Done', cancelled: 'Cancelled' };
+  const statusColors = { active: 'proj-status-active', planning: 'proj-status-planning', blocked: 'proj-status-blocked', on_hold: 'proj-status-hold', done: 'proj-status-done', cancelled: 'proj-status-cancelled' };
 
   const bodyHtml = `
     <div class="slideover-meta">
@@ -1432,6 +1443,470 @@ function renderExecutiveView() {
   }
 }
 
+/* ── Status Strip ── */
+let statusEventFadeTimer = null;
+
+function updateStatusStrip(eventText) {
+  const activeCount = allAgents.filter(a => a.status === 'active').length;
+  const countEl = document.getElementById('status-active-count');
+  if (countEl) countEl.textContent = `${activeCount} active`;
+
+  if (eventText) {
+    const centreEl = document.getElementById('status-last-event');
+    if (centreEl) {
+      centreEl.textContent = eventText;
+      centreEl.style.opacity = '1';
+      if (statusEventFadeTimer) clearTimeout(statusEventFadeTimer);
+      statusEventFadeTimer = setTimeout(() => {
+        if (centreEl) centreEl.style.opacity = '0.35';
+      }, 8000);
+    }
+  }
+}
+
+function setSSEConnected(connected) {
+  const dot   = document.getElementById('status-conn-dot');
+  const label = document.getElementById('status-conn-label');
+  if (dot)   dot.classList.toggle('disconnected', !connected);
+  if (label) { label.textContent = connected ? 'SSE' : 'OFF'; label.classList.toggle('disconnected', !connected); }
+}
+
+/* ── Engineering Live Feed ── */
+function renderLiveFeed() {
+  const container = document.getElementById('eng-live-feed-list');
+  if (!container) return;
+
+  if (!agentActivityLog.length) {
+    container.innerHTML = '<div class="empty-state">// NO ACTIVITY YET //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  const recent = agentActivityLog.slice(-50).reverse();
+  for (const entry of recent) {
+    const item = document.createElement('div');
+    item.className = 'live-feed-item';
+    applyAgentColorVars(item, entry.agentName);
+
+    const avatarEl = buildAvatarEl(entry.agentName, 'live-feed-avatar');
+
+    const body = document.createElement('div');
+    body.className = 'live-feed-body';
+    const c = getAgentColor(entry.agentName);
+    const accent = c ? c.accent : 'var(--text-dim)';
+    body.innerHTML = `
+      <div class="live-feed-name" style="color:${accent}">${escHtml(entry.agentName)}</div>
+      <div class="live-feed-action">${escHtml(entry.action)}</div>
+    `;
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'live-feed-time';
+    timeEl.textContent = entry.time;
+
+    item.appendChild(avatarEl);
+    item.appendChild(body);
+    item.appendChild(timeEl);
+    container.appendChild(item);
+  }
+}
+
+/* ── Operations Pipeline ── */
+function renderPipeline() {
+  const grid = document.getElementById('ops-pipeline-grid');
+  if (!grid) return;
+
+  let projects = allProjects;
+  if (activeProjFilter !== 'all') {
+    projects = projects.filter(p => p.status === activeProjFilter);
+  }
+
+  if (!projects.length) {
+    grid.innerHTML = '<div class="empty-state">// NO PROJECTS //</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  for (const proj of projects) {
+    grid.appendChild(buildProjectCard(proj));
+  }
+}
+
+/* ── Operations Gig Log ── */
+function renderGigLog() {
+  const container = document.getElementById('gig-log-list');
+  if (!container) return;
+
+  const done = allProjects.filter(p => p.status === 'done').slice().sort((a, b) => {
+    return new Date(b.updated_at) - new Date(a.updated_at);
+  });
+
+  if (!done.length) {
+    container.innerHTML = '<div class="empty-state">// NO COMPLETED GIGS //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const proj of done) {
+    const item = document.createElement('div');
+    item.className = 'gig-log-item';
+    item.innerHTML = `
+      <div class="gig-log-status-dot"></div>
+      <div class="gig-log-body">
+        <div class="gig-log-name">${escHtml(proj.title)}</div>
+        ${proj.description ? `<div class="gig-log-desc">${escHtml(proj.description)}</div>` : ''}
+      </div>
+      <div class="gig-log-meta">${timeAgo(proj.updated_at)}</div>
+    `;
+    item.addEventListener('click', () => openProjectDetail(proj));
+    container.appendChild(item);
+  }
+}
+
+/* ── Operations Comms Centre ── */
+function renderCommsRoomList() {
+  const listWrap = document.getElementById('comms-room-list-wrap');
+  const chatEl   = document.getElementById('comms-room-chat');
+  if (listWrap) listWrap.classList.remove('hidden');
+  if (chatEl)   chatEl.classList.add('hidden');
+  activeRoomId = null;
+
+  const container = document.getElementById('comms-room-list');
+  if (!container) return;
+
+  if (!allRooms.length) {
+    container.innerHTML = '<div class="empty-state">// NO ROOMS YET //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const room of allRooms) {
+    container.appendChild(buildCommsRoomCard(room));
+  }
+}
+
+function buildCommsRoomCard(room) {
+  const div = document.createElement('div');
+  div.className = 'comms-room-card';
+  div.setAttribute('data-room-id', room.id);
+
+  const isActive = room.status === 'active';
+  const msgs = roomMessages[room.id] || [];
+  const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+  const preview = lastMsg
+    ? `${escHtml(lastMsg.agent_name)}: ${escHtml(lastMsg.content.substring(0, 60))}${lastMsg.content.length > 60 ? '...' : ''}`
+    : (room.description ? escHtml(room.description.substring(0, 80)) : 'No messages yet');
+  const lastTime = room.last_message_at || room.created_at;
+
+  div.innerHTML = `
+    <div class="comms-room-pulse-dot ${isActive ? 'active' : ''}"></div>
+    <div class="comms-room-info">
+      <div class="comms-room-name">${escHtml(room.title)}</div>
+      <div class="comms-room-preview">${preview}</div>
+    </div>
+    <div class="comms-room-meta">
+      <div class="comms-room-time">${lastTime ? timeAgo(lastTime) : ''}</div>
+    </div>
+  `;
+
+  div.addEventListener('click', () => enterCommsRoom(room));
+  return div;
+}
+
+async function enterCommsRoom(room) {
+  const listWrap = document.getElementById('comms-room-list-wrap');
+  const chatEl   = document.getElementById('comms-room-chat');
+  if (listWrap) listWrap.classList.add('hidden');
+  if (chatEl)   chatEl.classList.remove('hidden');
+
+  const titleEl  = document.getElementById('comms-chat-title');
+  const statusEl = document.getElementById('comms-chat-status-badge');
+  if (titleEl) titleEl.textContent = room.title;
+  if (statusEl) {
+    const statusColors = { active: 'room-status-active', done: 'room-status-done', cancelled: 'room-status-cancelled' };
+    statusEl.className = `room-status-badge ${statusColors[room.status] || ''}`;
+    statusEl.textContent = room.status;
+  }
+
+  await loadRoomMessages(room.id);
+  activeRoomId = room.id;
+  renderCommsMessages(room.id);
+}
+
+function exitCommsRoom() {
+  activeRoomId = null;
+  renderCommsRoomList();
+}
+
+window.exitCommsRoom = exitCommsRoom;
+
+function renderCommsMessages(roomId) {
+  const container = document.getElementById('comms-chat-messages');
+  if (!container) return;
+
+  const msgs = roomMessages[roomId] || [];
+  if (!msgs.length) {
+    container.innerHTML = '<div class="empty-state">// NO MESSAGES YET //</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  let prevAgent = null;
+  for (const msg of msgs) {
+    container.appendChild(buildChatBubble(msg, prevAgent));
+    prevAgent = msg.agent_name;
+  }
+
+  requestAnimationFrame(() => scrollCommsChatToBottom());
+}
+
+function appendCommsMessage(msg) {
+  if (!activeRoomId || msg.room_id !== activeRoomId) return;
+
+  const container = document.getElementById('comms-chat-messages');
+  if (!container) return;
+
+  const empty = container.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  const lastBubble = container.lastElementChild;
+  let prevAgent = null;
+  if (lastBubble) {
+    const lastMsgId = lastBubble.getAttribute('data-msg-id');
+    if (lastMsgId) {
+      const cache = roomMessages[activeRoomId] || [];
+      const lastRendered = cache.find(m => String(m.id) === String(lastMsgId));
+      if (lastRendered) prevAgent = lastRendered.agent_name;
+    }
+  }
+
+  if (!roomMessages[activeRoomId]) roomMessages[activeRoomId] = [];
+  if (!roomMessages[activeRoomId].find(m => m.id === msg.id)) {
+    roomMessages[activeRoomId].push(msg);
+  }
+
+  container.appendChild(buildChatBubble(msg, prevAgent));
+  scrollCommsChatToBottom();
+}
+
+function scrollCommsChatToBottom() {
+  const container = document.getElementById('comms-chat-messages');
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+/* ── Design Studio ── */
+function renderDesignStudio() {
+  const judy = allAgents.find(a => a.name.toLowerCase() === 'judy');
+  if (!judy) return;
+
+  applyAgentColorVars(document.getElementById('studio-agent-card'), 'judy');
+
+  // Avatar
+  const avatarEl = document.getElementById('studio-avatar');
+  if (avatarEl) {
+    if (judy.avatar_url) {
+      avatarEl.innerHTML = `<img src="${escHtml(judy.avatar_url)}" alt="Judy" class="avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.parentElement.textContent='J'"/>`;
+    } else {
+      avatarEl.textContent = 'J';
+    }
+  }
+
+  // Status ring
+  const ringEl = document.getElementById('studio-status-ring');
+  if (ringEl) ringEl.classList.toggle('active', isRecentlyActive(judy.last_active));
+
+  // Name, role, status
+  const nameEl = document.getElementById('studio-agent-name');
+  if (nameEl) nameEl.textContent = judy.name;
+
+  const roleEl = document.getElementById('studio-agent-role');
+  if (roleEl) roleEl.textContent = judy.designation || 'Designer';
+
+  const statusEl = document.getElementById('studio-agent-status');
+  if (statusEl) statusEl.textContent = judy.current_activity || 'Standby';
+
+  // Task count
+  const countEl = document.getElementById('studio-task-count');
+  if (countEl) countEl.textContent = judy.active_task_count || 0;
+
+  // Brief queue — design dept projects
+  const designDept = allDepts.find(d => d.name.toLowerCase() === 'design');
+  let briefs = allProjects;
+  if (designDept) briefs = allProjects.filter(p => p.department_id === designDept.id);
+
+  const queueEl = document.getElementById('brief-queue-list');
+  if (queueEl) {
+    if (!briefs.length) {
+      queueEl.innerHTML = '<div class="empty-state" style="padding:16px">// NO BRIEFS //</div>';
+    } else {
+      queueEl.innerHTML = '';
+      for (const proj of briefs) {
+        const item = document.createElement('div');
+        item.className = 'brief-item';
+        const statusClasses = { active: 'active', planning: 'planning', done: 'done', on_hold: 'planning' };
+        const sClass = statusClasses[proj.status] || '';
+        item.innerHTML = `
+          <div class="brief-item-name">${escHtml(proj.title)}</div>
+          ${proj.description ? `<div class="brief-item-desc">${escHtml(proj.description)}</div>` : ''}
+          <div class="brief-item-meta">
+            <span class="brief-item-status ${sClass}">${escHtml(proj.status)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${timeAgo(proj.updated_at)}</span>
+          </div>
+        `;
+        item.addEventListener('click', () => openProjectDetail(proj));
+        queueEl.appendChild(item);
+      }
+    }
+  }
+}
+
+/* ── Executive Crew Tiles ── */
+function renderCrewTiles() {
+  const grid = document.getElementById('crew-tile-grid');
+  if (!grid) return;
+
+  const activeCount = allAgents.filter(a => a.status === 'active').length;
+  const countEl = document.getElementById('exec-crew-active-count');
+  if (countEl) countEl.textContent = `${activeCount} active now`;
+
+  if (!allAgents.length) {
+    grid.innerHTML = '<div class="empty-state">// NO CREW //</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  for (const agent of allAgents) {
+    grid.appendChild(buildCrewTile(agent));
+  }
+}
+
+function buildCrewTile(agent) {
+  const div = document.createElement('div');
+  div.className = 'crew-tile';
+  div.setAttribute('data-agent-id', agent.id);
+  div.setAttribute('data-agent-name', (agent.name || '').toLowerCase());
+  applyAgentColorVars(div, agent.name);
+
+  const initial = getAgentInitial(agent.name);
+  const live = isRecentlyActive(agent.last_active);
+  const taskCount = agent.active_task_count || 0;
+  const activity = agent.current_activity || 'Standby';
+  const lastActive = agent.last_active ? timeAgo(agent.last_active) : 'never';
+
+  let avatarInner;
+  if (agent.avatar_url) {
+    avatarInner = `<img src="${escHtml(agent.avatar_url)}" alt="${escHtml(agent.name)}" class="avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/><span class="avatar-fallback" style="display:none">${escHtml(initial)}</span>`;
+  } else {
+    avatarInner = escHtml(initial);
+  }
+
+  div.innerHTML = `
+    <div class="crew-tile-avatar-wrap">
+      <div class="crew-tile-avatar">${avatarInner}</div>
+      <div class="crew-tile-status-ring ${live ? 'active' : ''}"></div>
+    </div>
+    <div class="crew-tile-name">${escHtml(agent.name)}</div>
+    <div class="crew-tile-designation">${escHtml(agent.designation || '—')}</div>
+    <div class="crew-tile-activity">${escHtml(activity)}</div>
+    <div class="crew-tile-footer">
+      <div class="crew-tile-task-count">${taskCount} task${taskCount !== 1 ? 's' : ''}</div>
+      <div class="crew-tile-last-active">${lastActive}</div>
+    </div>
+  `;
+
+  div.addEventListener('click', () => openAgentProfile(agent));
+  return div;
+}
+
+function updateCrewTile(agent) {
+  const tile = document.querySelector(`.crew-tile[data-agent-id="${agent.id}"]`);
+  if (!tile) { renderCrewTiles(); return; }
+
+  applyAgentColorVars(tile, agent.name);
+
+  const live = isRecentlyActive(agent.last_active);
+  const ring = tile.querySelector('.crew-tile-status-ring');
+  if (ring) ring.classList.toggle('active', live);
+
+  const actEl = tile.querySelector('.crew-tile-activity');
+  if (actEl) actEl.textContent = agent.current_activity || 'Standby';
+
+  const countEl = tile.querySelector('.crew-tile-task-count');
+  if (countEl) {
+    const tc = agent.active_task_count || 0;
+    countEl.textContent = `${tc} task${tc !== 1 ? 's' : ''}`;
+  }
+
+  const lastEl = tile.querySelector('.crew-tile-last-active');
+  if (lastEl) lastEl.textContent = agent.last_active ? timeAgo(agent.last_active) : 'never';
+
+  // Flash border on update
+  tile.classList.remove('flash-update');
+  void tile.offsetWidth; // reflow to restart animation
+  tile.classList.add('flash-update');
+  setTimeout(() => tile.classList.remove('flash-update'), 650);
+}
+
+/* ── Executive Intelligence ── */
+let executiveIntelligence = null;
+
+async function loadExecutiveIntelligence() {
+  try {
+    const res = await authedFetch(`${EXECUTIVE_API}/intelligence`);
+    if (!res.ok) throw new Error('Failed to fetch intelligence');
+    executiveIntelligence = await res.json();
+    renderExecutiveIntelligence();
+  } catch (err) {
+    console.error('Error loading intelligence:', err);
+    const el = document.getElementById('intel-bottleneck-list');
+    if (el) el.innerHTML = '<div class="empty-state" style="padding:14px">// LOAD ERROR //</div>';
+  }
+}
+
+function renderExecutiveIntelligence() {
+  const d = executiveIntelligence;
+  if (!d) return;
+
+  // Velocity
+  const badge = document.getElementById('intel-velocity-badge');
+  const thisWeek = document.getElementById('intel-velocity-this-week');
+  const lastWeek = document.getElementById('intel-velocity-last-week');
+
+  if (thisWeek) thisWeek.textContent = d.velocity ? d.velocity.this_week : '—';
+  if (lastWeek) lastWeek.textContent = d.velocity ? d.velocity.last_week : '—';
+
+  if (badge && d.velocity) {
+    const delta = d.velocity.delta;
+    const trend = d.velocity.trend;
+    badge.className = `intel-velocity-badge ${trend}`;
+    badge.textContent = delta > 0 ? `+${delta} this week` : (delta < 0 ? `${delta} this week` : 'Flat');
+  }
+
+  // Bottlenecks
+  const list = document.getElementById('intel-bottleneck-list');
+  if (list) {
+    if (!d.bottlenecks || !d.bottlenecks.length) {
+      list.innerHTML = '<div class="empty-state" style="padding:14px">// NO BOTTLENECKS //</div>';
+    } else {
+      list.innerHTML = '';
+      for (const b of d.bottlenecks) {
+        const item = document.createElement('div');
+        item.className = 'intel-bottleneck-item';
+        item.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:flex-end;min-width:40px;flex-shrink:0">
+            <div class="intel-bottleneck-days">${b.days_stuck}</div>
+            <div class="intel-bottleneck-days-label">days</div>
+          </div>
+          <div class="intel-bottleneck-body">
+            <div class="intel-bottleneck-title">${escHtml(b.title)}</div>
+            <div class="intel-bottleneck-assignee">${escHtml(b.assigned_to || 'Unassigned')}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      }
+    }
+  }
+}
+
 /* ── SSE connection ── */
 let sseHeartbeatTimer = null;  // watchdog timer — reconnects if no heartbeat
 const SSE_HEARTBEAT_TIMEOUT = 45000; // 25s server interval + 20s grace
@@ -1463,6 +1938,7 @@ function connectSSE() {
 
   eventSource.onopen = () => {
     if (dot) dot.classList.add('connected');
+    setSSEConnected(true);
     resetHeartbeatWatchdog(dot);
   };
 
@@ -1476,6 +1952,12 @@ function connectSSE() {
     if (activeSection === 'dashboard') renderWhosWorking();
     if (activeSection === 'agents') renderAgents();
     if (activeSection === 'org') buildOrgTree(allAgents);
+    if (activeSection === 'exec-crew') updateCrewTile(agent);
+    if (activeSection === 'design-studio') renderDesignStudio();
+    if (activeSection === 'eng-live-feed') renderLiveFeed();
+
+    // Status strip — always update active count
+    updateStatusStrip(agent.current_activity ? `${agent.name}: ${agent.current_activity}` : null);
 
     if (agent.current_activity) {
       logActivity(`<strong>${escHtml(agent.name)}</strong>: ${escHtml(agent.current_activity)}`, 'in_progress');
@@ -1496,41 +1978,26 @@ function connectSSE() {
       }
     }
 
-    if (activeSection === 'meeting') {
+    // Cache message regardless of current section
+    if (msg.room_id) {
+      if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
+      if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
+        roomMessages[msg.room_id].push(msg);
+      }
+    }
+
+    if (activeSection === 'ops-comms') {
       if (activeRoomId === msg.room_id) {
-        // appendRoomMessage handles cache push + DOM append
-        appendRoomMessage(msg);
+        appendCommsMessage(msg);
       } else if (activeRoomId === null) {
-        // on room list — re-render to update counts
-        // Still cache the message so entering the room later shows it
-        if (msg.room_id) {
-          if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
-          if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
-            roomMessages[msg.room_id].push(msg);
-          }
-        }
-        renderRoomList();
+        renderCommsRoomList();
         unreadMessages++;
         updateMsgBadge();
       } else {
-        // In a different room — cache only
-        if (msg.room_id) {
-          if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
-          if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
-            roomMessages[msg.room_id].push(msg);
-          }
-        }
         unreadMessages++;
         updateMsgBadge();
       }
     } else {
-      // Not in meeting section — cache so it's ready when user enters
-      if (msg.room_id) {
-        if (!roomMessages[msg.room_id]) roomMessages[msg.room_id] = [];
-        if (!roomMessages[msg.room_id].find(m => m.id === msg.id)) {
-          roomMessages[msg.room_id].push(msg);
-        }
-      }
       unreadMessages++;
       updateMsgBadge();
     }
@@ -1586,8 +2053,8 @@ function connectSSE() {
       if (idx !== -1) allRooms[idx] = { ...allRooms[idx], ...room };
     }
 
-    if (activeSection === 'meeting' && !activeRoomId) {
-      renderRoomList();
+    if (activeSection === 'ops-comms' && !activeRoomId) {
+      renderCommsRoomList();
     }
   });
 
@@ -1607,6 +2074,8 @@ function connectSSE() {
     if (idx !== -1) allProjects[idx] = project;
     else allProjects.unshift(project);
     if (activeSection === 'projects') renderProjects();
+    if (activeSection === 'ops-pipeline') renderPipeline();
+    if (activeSection === 'ops-gig-log') renderGigLog();
   });
 
   eventSource.addEventListener('dept_update', (e) => {
@@ -1625,6 +2094,7 @@ function connectSSE() {
   eventSource.onerror = () => {
     if (sseHeartbeatTimer) { clearTimeout(sseHeartbeatTimer); sseHeartbeatTimer = null; }
     if (dot) dot.classList.remove('connected');
+    setSSEConnected(false);
     if (eventSource) { eventSource.close(); eventSource = null; }
     setTimeout(connectSSE, 5000);
   };
@@ -1715,6 +2185,7 @@ async function loadAll() {
   renderEngBoard();
   renderAgents();
   renderProjects();
+  updateStatusStrip(null);
 }
 
 /* ── Config load ── */
@@ -1740,11 +2211,18 @@ loadConfig().then(() => {
 // Periodic full refresh as fallback (every 2 min)
 setInterval(async () => {
   await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects()]);
-  if (activeSection === 'dashboard')   renderDashboard();
-  if (activeSection === 'tasks')       renderBoard(filterTasks(allTasks, activeFilter));
-  if (activeSection === 'agents')      renderAgents();
-  if (activeSection === 'eng-tasks')   renderEngBoard();
-  if (activeSection === 'meeting' && !activeRoomId) renderRoomList();
-  if (activeSection === 'projects')    renderProjects();
-  if (activeSection === 'exec-summary') loadExecutiveSummary();
+  if (activeSection === 'dashboard')         renderDashboard();
+  if (activeSection === 'tasks')             renderBoard(filterTasks(allTasks, activeFilter));
+  if (activeSection === 'agents')            renderAgents();
+  if (activeSection === 'eng-tasks')         renderEngBoard();
+  if (activeSection === 'eng-live-feed')     renderLiveFeed();
+  if (activeSection === 'ops-pipeline')      renderPipeline();
+  if (activeSection === 'ops-comms' && !activeRoomId) renderCommsRoomList();
+  if (activeSection === 'ops-gig-log')       renderGigLog();
+  if (activeSection === 'design-studio')     renderDesignStudio();
+  if (activeSection === 'exec-crew')         renderCrewTiles();
+  if (activeSection === 'exec-intelligence') loadExecutiveIntelligence();
+  if (activeSection === 'exec-summary')      loadExecutiveSummary();
+  if (activeSection === 'projects')          renderProjects();
+  updateStatusStrip(null);
 }, 120000);
