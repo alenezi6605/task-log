@@ -152,6 +152,48 @@ if (!agentColumns.includes('avatar_url')) {
   db.exec(`ALTER TABLE agents ADD COLUMN avatar_url TEXT`);
 }
 
+// Safe migration — expand projects status CHECK to include 'planning' and 'blocked'
+// Strategy: detect if migration needed by checking if 'planning' is already allowed.
+// We do this by attempting to use a PRAGMA integrity check approach — simpler:
+// try inserting/rolling back a test value, or check sqlite_master for the old constraint.
+const projectsTableDef = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'").get();
+if (projectsTableDef && projectsTableDef.sql && !projectsTableDef.sql.includes("'planning'")) {
+  // Migration needed — recreate projects with expanded CHECK constraint
+  // Safe approach: rename old, create new, copy data, keep old as backup
+  try {
+    db.pragma('foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        department_id INTEGER REFERENCES departments(id),
+        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'planning', 'blocked', 'on_hold', 'done', 'cancelled')),
+        lead_agent TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      INSERT OR IGNORE INTO projects_new (id, title, description, department_id, status, lead_agent, created_at, updated_at)
+        SELECT id, title, description, department_id, status, lead_agent, created_at, updated_at FROM projects;
+
+      ALTER TABLE projects RENAME TO projects_backup_v1;
+      ALTER TABLE projects_new RENAME TO projects;
+
+      CREATE TRIGGER IF NOT EXISTS update_projects_updated_at
+        AFTER UPDATE ON projects
+        FOR EACH ROW
+        BEGIN
+          UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+        END;
+    `);
+    db.pragma('foreign_keys = ON');
+  } catch (migErr) {
+    // Migration already ran or table already in target state — safe to ignore
+    db.pragma('foreign_keys = ON');
+  }
+}
+
 // Safe migration — add room_id to messages if it doesn't exist
 const msgColumns = db.pragma('table_info(messages)').map(c => c.name);
 if (!msgColumns.includes('room_id')) {
