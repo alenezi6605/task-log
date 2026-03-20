@@ -26,11 +26,12 @@
         <span class="dept-tab-icon">◈</span>
         <span class="dept-tab-label">Design</span>
       </button>
-      <button class="dept-tab" data-dept="commerce" onclick="switchDept('commerce')">
+      <button class="dept-tab dept-tab-tbd" data-dept="commerce" title="Coming soon" disabled>
         <span class="dept-tab-icon">&#9824;</span>
         <span class="dept-tab-label">Commerce</span>
+        <span class="dept-tab-tbd-badge">TBD</span>
       </button>
-      <button class="dept-tab dept-tab-tbd" data-dept="analytics" onclick="switchDept('analytics')">
+      <button class="dept-tab dept-tab-tbd" data-dept="analytics" title="Coming soon" disabled>
         <span class="dept-tab-icon">◈</span>
         <span class="dept-tab-label">Analytics</span>
         <span class="dept-tab-tbd-badge">TBD</span>
@@ -115,6 +116,18 @@
     <!-- Design sidebar -->
     <ul class="sidebar-nav dept-nav hidden" id="nav-design">
       <li>
+        <button class="nav-item" data-section="agents" onclick="switchSection('agents')">
+          <span class="nav-icon">&#9824;</span>
+          <span class="nav-label">Agents</span>
+        </button>
+      </li>
+      <li>
+        <button class="nav-item" data-section="meeting" onclick="switchSection('meeting')">
+          <span class="nav-icon">&#9993;</span>
+          <span class="nav-label">Meeting Rooms</span>
+        </button>
+      </li>
+      <li>
         <button class="nav-item nav-item-coming" data-section="design-assets" onclick="switchSection('design-assets')">
           <span class="nav-icon">◈</span>
           <span class="nav-label">Asset Library</span>
@@ -133,28 +146,10 @@
     <!-- Commerce sidebar -->
     <ul class="sidebar-nav dept-nav hidden" id="nav-commerce">
       <li>
-        <button class="nav-item" data-section="commerce-products" onclick="switchSection('commerce-products')">
-          <span class="nav-icon">&#9632;</span>
-          <span class="nav-label">Products</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item" data-section="commerce-inventory" onclick="switchSection('commerce-inventory')">
-          <span class="nav-icon">&#9707;</span>
-          <span class="nav-label">Inventory</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item" data-section="commerce-revenue" onclick="switchSection('commerce-revenue')">
-          <span class="nav-icon">&#9824;</span>
-          <span class="nav-label">Revenue</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item nav-item-coming" data-section="commerce-pipeline" onclick="switchSection('commerce-pipeline')">
+        <button class="nav-item nav-item-coming" data-section="commerce-tbd">
           <span class="nav-icon">◈</span>
-          <span class="nav-label">Pipeline</span>
-          <span class="nav-badge-coming">Soon</span>
+          <span class="nav-label">Commerce</span>
+          <span class="nav-badge-coming">TBD</span>
         </button>
       </li>
     </ul>
@@ -180,30 +175,21 @@
     <!-- Executive sidebar -->
     <ul class="sidebar-nav dept-nav hidden" id="nav-executive">
       <li>
-        <button class="nav-item nav-item-coming" data-section="exec-overview" onclick="switchSection('exec-overview')">
-          <span class="nav-icon">◈</span>
-          <span class="nav-label">Company Overview</span>
-          <span class="nav-badge-coming">Soon</span>
+        <button class="nav-item" data-section="exec-summary" onclick="switchSection('exec-summary')">
+          <span class="nav-icon">&#9632;</span>
+          <span class="nav-label">Dashboard</span>
         </button>
       </li>
       <li>
-        <button class="nav-item nav-item-coming" data-section="exec-departments" onclick="switchSection('exec-departments')">
-          <span class="nav-icon">◈</span>
-          <span class="nav-label">Dept Status</span>
-          <span class="nav-badge-coming">Soon</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item nav-item-coming" data-section="exec-chain" onclick="switchSection('exec-chain')">
-          <span class="nav-icon">◈</span>
-          <span class="nav-label">Chain of Command</span>
-          <span class="nav-badge-coming">Soon</span>
+        <button class="nav-item" data-section="org" onclick="switchSection('org')">
+          <span class="nav-icon">&#9671;</span>
+          <span class="nav-label">Org Chart</span>
         </button>
       </li>
     </ul>
 
     <div class="sidebar-footer">
-      <span class="sidebar-version">v2.0 ERP</span>
+      <span class="sidebar-version">v2.0</span>
     </div>
   </nav>
 
@@ -440,101 +426,12 @@
       </div>
     </section>
 
-    <!-- ── Commerce Department ── -->
-
-    <!-- Section: Products -->
-    <section class="section hidden" id="section-commerce-products">
-      <div class="section-header">
-        <h1 class="section-title">Products</h1>
-        <div class="task-filter-btns">
-          <button class="filter-btn active" data-product-filter="all" onclick="setProductFilter('all')">All</button>
-          <button class="filter-btn" data-product-filter="active" onclick="setProductFilter('active')">Active</button>
-          <button class="filter-btn" data-product-filter="draft" onclick="setProductFilter('draft')">Draft</button>
-          <button class="filter-btn" data-product-filter="archived" onclick="setProductFilter('archived')">Archived</button>
-        </div>
-      </div>
-      <div class="stat-grid" id="products-stats" style="margin-bottom:20px">
-        <div class="stat-card" style="--bar-color:var(--amber)">
-          <div class="stat-value" id="stat-products-total">—</div>
-          <div class="stat-label">Total Products</div>
-        </div>
-        <div class="stat-card" style="--bar-color:var(--green)">
-          <div class="stat-value" id="stat-products-active">—</div>
-          <div class="stat-label">Active</div>
-        </div>
-        <div class="stat-card" style="--bar-color:var(--red)">
-          <div class="stat-value" id="stat-products-low-stock">—</div>
-          <div class="stat-label">Low Stock</div>
-        </div>
-        <div class="stat-card" style="--bar-color:var(--grey)">
-          <div class="stat-value" id="stat-products-out-of-stock">—</div>
-          <div class="stat-label">Out of Stock</div>
-        </div>
-      </div>
-      <div class="products-grid" id="products-grid">
-        <div class="empty-state">// LOADING PRODUCTS //</div>
-      </div>
-    </section>
-
-    <!-- Section: Inventory -->
-    <section class="section hidden" id="section-commerce-inventory">
-      <div class="section-header">
-        <h1 class="section-title">Inventory</h1>
-        <div class="task-filter-btns">
-          <button class="filter-btn active" data-inv-filter="all" onclick="setInventoryFilter('all')">All</button>
-          <button class="filter-btn" data-inv-filter="low_stock" onclick="setInventoryFilter('low_stock')">Low Stock</button>
-        </div>
-      </div>
-      <div class="inventory-table-wrap" id="inventory-table-wrap">
-        <div class="empty-state">// LOADING INVENTORY //</div>
-      </div>
-    </section>
-
-    <!-- Section: Revenue -->
-    <section class="section hidden" id="section-commerce-revenue">
-      <div class="section-header">
-        <h1 class="section-title">Revenue</h1>
-        <span class="section-sub">Snapshots</span>
-      </div>
-      <div class="stat-grid" id="revenue-stats" style="margin-bottom:20px">
-        <div class="stat-card stat-done">
-          <div class="stat-value" id="stat-revenue-today">—</div>
-          <div class="stat-label">Today</div>
-        </div>
-        <div class="stat-card stat-inprogress">
-          <div class="stat-value" id="stat-revenue-30d">—</div>
-          <div class="stat-label">Last 30 Days</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-revenue-orders">—</div>
-          <div class="stat-label">Orders (30d)</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-revenue-total">—</div>
-          <div class="stat-label">All Time</div>
-        </div>
-      </div>
-      <div class="revenue-list" id="revenue-list">
-        <div class="empty-state">// NO REVENUE DATA //</div>
-      </div>
-    </section>
-
-    <!-- Pipeline placeholder -->
-    <section class="section hidden" id="section-commerce-pipeline">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--amber)">◈</div>
-        <div class="dept-placeholder-title">Pipeline</div>
-        <div class="dept-placeholder-sub">Sales Pipeline — Commerce Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
-      </div>
-    </section>
-
-    <!-- ── Analytics Department (Phase 4 placeholder) ── -->
+    <!-- ── Analytics Department (TBD placeholder) ── -->
     <section class="section hidden" id="section-analytics-kpis">
       <div class="dept-placeholder">
         <div class="dept-placeholder-icon" style="color:var(--yellow)">◈</div>
         <div class="dept-placeholder-title">Company KPIs</div>
-        <div class="dept-placeholder-sub">Phase 4 — Analytics Department</div>
+        <div class="dept-placeholder-sub">Analytics Department</div>
         <div class="dept-placeholder-status">Coming Soon</div>
       </div>
     </section>
@@ -543,36 +440,88 @@
       <div class="dept-placeholder">
         <div class="dept-placeholder-icon" style="color:var(--yellow)">◈</div>
         <div class="dept-placeholder-title">Eng Velocity</div>
-        <div class="dept-placeholder-sub">Phase 4 — Analytics Department</div>
+        <div class="dept-placeholder-sub">Analytics Department</div>
         <div class="dept-placeholder-status">Coming Soon</div>
       </div>
     </section>
 
-    <!-- ── Executive Department (Phase 6 placeholder) ── -->
-    <section class="section hidden" id="section-exec-overview">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
-        <div class="dept-placeholder-title">Company Overview</div>
-        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
-      </div>
-    </section>
+    <!-- ── Executive Department ── -->
 
-    <section class="section hidden" id="section-exec-departments">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
-        <div class="dept-placeholder-title">Department Status</div>
-        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
+    <!-- Section: Executive Summary Dashboard -->
+    <section class="section hidden" id="section-exec-summary">
+      <div class="section-header">
+        <h1 class="section-title">Executive Dashboard</h1>
+        <span class="section-sub" id="exec-generated-at"></span>
       </div>
-    </section>
 
-    <section class="section hidden" id="section-exec-chain">
-      <div class="dept-placeholder">
-        <div class="dept-placeholder-icon" style="color:var(--cyan)">◈</div>
-        <div class="dept-placeholder-title">Chain of Command</div>
-        <div class="dept-placeholder-sub">Phase 6 — Executive Department</div>
-        <div class="dept-placeholder-status">Coming Soon</div>
+      <!-- Agent status row -->
+      <div class="stat-grid exec-stat-grid">
+        <div class="stat-card exec-stat-card" style="--bar-color:var(--cyan)">
+          <div class="stat-value" id="exec-stat-active-now">—</div>
+          <div class="stat-label">Active Now</div>
+        </div>
+        <div class="stat-card exec-stat-card" style="--bar-color:var(--purple)">
+          <div class="stat-value" id="exec-stat-total-agents">—</div>
+          <div class="stat-label">Total Agents</div>
+        </div>
+        <div class="stat-card exec-stat-card stat-pending">
+          <div class="stat-value" id="exec-stat-tasks-pending">—</div>
+          <div class="stat-label">Tasks Pending</div>
+        </div>
+        <div class="stat-card exec-stat-card stat-inprogress">
+          <div class="stat-value" id="exec-stat-tasks-inprogress">—</div>
+          <div class="stat-label">Tasks In Progress</div>
+        </div>
+        <div class="stat-card exec-stat-card stat-done">
+          <div class="stat-value" id="exec-stat-tasks-done">—</div>
+          <div class="stat-label">Tasks Done</div>
+        </div>
+      </div>
+
+      <!-- Eng tasks row -->
+      <div class="exec-section-label">Engineering Board</div>
+      <div class="stat-grid exec-stat-grid" style="margin-top:0">
+        <div class="stat-card exec-stat-card">
+          <div class="stat-value" id="exec-stat-eng-backlog">—</div>
+          <div class="stat-label">Backlog</div>
+        </div>
+        <div class="stat-card exec-stat-card stat-inprogress">
+          <div class="stat-value" id="exec-stat-eng-inprogress">—</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card exec-stat-card" style="--bar-color:var(--amber)">
+          <div class="stat-value" id="exec-stat-eng-review">—</div>
+          <div class="stat-label">In Review</div>
+        </div>
+        <div class="stat-card exec-stat-card stat-done">
+          <div class="stat-value" id="exec-stat-eng-done">—</div>
+          <div class="stat-label">Done</div>
+        </div>
+      </div>
+
+      <!-- Recent activity + deploy -->
+      <div class="dashboard-panels" style="margin-top:16px">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Recent Agent Activity</span>
+            <span class="panel-hint">last 10</span>
+          </div>
+          <div class="panel-body" id="exec-activity-feed">
+            <div class="empty-state">// LOADING //</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">System</span>
+          </div>
+          <div class="panel-body exec-system-panel">
+            <div class="exec-system-row">
+              <span class="exec-system-label">Last Deploy</span>
+              <span class="exec-system-value" id="exec-last-deploy">—</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 

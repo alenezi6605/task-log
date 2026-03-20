@@ -6,9 +6,7 @@ const ROOMS_API       = '/api/rooms';
 const ENG_TASKS_API   = '/api/eng-tasks';
 const DEPTS_API       = '/api/departments';
 const PROJECTS_API    = '/api/projects';
-const PRODUCTS_API    = '/api/products';
-const INVENTORY_API   = '/api/inventory';
-const REVENUE_API     = '/api/revenue';
+const EXECUTIVE_API   = '/api/executive';
 const EVENTS_URL      = '/api/events';
 
 /* ── Auth ── */
@@ -40,11 +38,7 @@ let allRooms        = [];
 let allEngTasks     = [];
 let allDepts        = [];
 let allProjects     = [];
-let allProducts     = [];
-let allInventory    = [];
-let revenueData     = { snapshots: [], summary: null };
-let activeProductFilter   = 'all';
-let activeInventoryFilter = 'all';
+let executiveSummary = null;
 let unreadMessages  = 0;
 let eventSource     = null;
 let activityLog     = []; // { text, status, time }
@@ -252,9 +246,9 @@ function switchDept(dept) {
     engineering: 'dashboard',
     operations:  'projects',
     design:      'design-assets',
-    commerce:    'commerce-products',
+    commerce:    'analytics-kpis',
     analytics:   'analytics-kpis',
-    executive:   'exec-overview'
+    executive:   'exec-summary'
   };
   switchSection(deptDefaults[dept] || dept);
 }
@@ -285,10 +279,8 @@ function switchSection(section) {
     renderRoomList();
   }
   if (section === 'eng-tasks')   renderEngBoard();
-  if (section === 'projects')           renderProjects();
-  if (section === 'commerce-products')  renderProducts();
-  if (section === 'commerce-inventory') renderInventory();
-  if (section === 'commerce-revenue')   renderRevenue();
+  if (section === 'projects')    renderProjects();
+  if (section === 'exec-summary') loadExecutiveSummary();
 
   closeSidebar();
 }
@@ -1360,235 +1352,83 @@ function openProjectDetail(proj) {
   openSlideover(proj.title, bodyHtml);
 }
 
-/* ── Commerce: Products ── */
-function setProductFilter(filter) {
-  activeProductFilter = filter;
-  document.querySelectorAll('[data-product-filter]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.productFilter === filter);
-  });
-  renderProducts();
-}
-
-window.setProductFilter = setProductFilter;
-
-function renderProductStats() {
-  const totalEl    = document.getElementById('stat-products-total');
-  const activeEl   = document.getElementById('stat-products-active');
-  const lowEl      = document.getElementById('stat-products-low-stock');
-  const outEl      = document.getElementById('stat-products-out-of-stock');
-  if (!totalEl) return;
-
-  const total    = allProducts.length;
-  const active   = allProducts.filter(p => p.status === 'active').length;
-  const lowStock = allProducts.filter(p => p.low_stock).length;
-  const outOfStock = allProducts.filter(p => p.quantity !== null && p.quantity === 0).length;
-
-  totalEl.textContent  = total;
-  activeEl.textContent = active;
-  lowEl.textContent    = lowStock;
-  outEl.textContent    = outOfStock;
-}
-
-function renderProducts() {
-  renderProductStats();
-  const grid = document.getElementById('products-grid');
-  if (!grid) return;
-
-  let products = allProducts;
-  if (activeProductFilter !== 'all') {
-    products = products.filter(p => p.status === activeProductFilter);
-  }
-
-  if (!products.length) {
-    grid.innerHTML = '<div class="empty-state">// NO PRODUCTS //</div>';
-    return;
-  }
-
-  grid.innerHTML = '';
-  for (const prod of products) {
-    grid.appendChild(buildProductCard(prod));
+/* ── Executive Dashboard ── */
+async function loadExecutiveSummary() {
+  try {
+    const res = await authedFetch(`${EXECUTIVE_API}/summary`);
+    if (!res.ok) throw new Error('Failed to fetch executive summary');
+    executiveSummary = await res.json();
+    renderExecutiveView();
+  } catch (err) {
+    console.error('Error loading executive summary:', err);
+    const feed = document.getElementById('exec-activity-feed');
+    if (feed) feed.innerHTML = '<div class="empty-state">// LOAD ERROR //</div>';
   }
 }
 
-function buildProductCard(prod) {
-  const div = document.createElement('div');
-  div.className = 'product-card';
+function renderExecutiveView() {
+  const s = executiveSummary;
+  if (!s) return;
 
-  const statusColors = { active: 'proj-status-active', draft: 'proj-status-hold', archived: 'proj-status-done' };
-  const statusClass  = statusColors[prod.status] || '';
+  const el = id => document.getElementById(id);
 
-  const price = prod.price !== null ? `$${Number(prod.price).toFixed(2)}` : '—';
-  const qty   = prod.quantity !== null ? prod.quantity : '—';
-  const lowStockWarning = prod.low_stock ? '<span class="inv-low-badge">LOW STOCK</span>' : '';
-  const outOfStockWarning = prod.quantity === 0 ? '<span class="inv-out-badge">OUT</span>' : '';
+  // Agent counts
+  if (el('exec-stat-active-now'))    el('exec-stat-active-now').textContent    = s.agents.active_now;
+  if (el('exec-stat-total-agents'))  el('exec-stat-total-agents').textContent  = s.agents.total_active;
 
-  const imgHtml = prod.cloudinary_url
-    ? `<div class="product-card-img"><img src="${escHtml(prod.cloudinary_url)}" alt="${escHtml(prod.name)}" onerror="this.parentElement.innerHTML='<div class=product-card-img-placeholder>No Image</div>'"/></div>`
-    : `<div class="product-card-img product-card-img-placeholder">No Image</div>`;
+  // Task counts
+  if (el('exec-stat-tasks-pending'))    el('exec-stat-tasks-pending').textContent    = s.tasks.pending;
+  if (el('exec-stat-tasks-inprogress')) el('exec-stat-tasks-inprogress').textContent = s.tasks.in_progress;
+  if (el('exec-stat-tasks-done'))       el('exec-stat-tasks-done').textContent       = s.tasks.done;
 
-  div.innerHTML = `
-    ${imgHtml}
-    <div class="product-card-body">
-      <div class="product-card-top">
-        <div class="product-card-name">${escHtml(prod.name)}</div>
-        <span class="project-status-badge ${statusClass}">${escHtml(prod.status)}</span>
-      </div>
-      ${prod.sku ? `<div class="product-card-sku">SKU: ${escHtml(prod.sku)}</div>` : ''}
-      ${prod.category ? `<div class="product-card-cat">${escHtml(prod.category)}</div>` : ''}
-      <div class="product-card-meta">
-        <span class="product-card-price">${price}</span>
-        <span class="product-card-qty">Qty: ${qty} ${lowStockWarning}${outOfStockWarning}</span>
-      </div>
-    </div>
-  `;
+  // Eng task counts
+  if (el('exec-stat-eng-backlog'))    el('exec-stat-eng-backlog').textContent    = s.eng_tasks.backlog;
+  if (el('exec-stat-eng-inprogress')) el('exec-stat-eng-inprogress').textContent = s.eng_tasks.in_progress;
+  if (el('exec-stat-eng-review'))     el('exec-stat-eng-review').textContent     = s.eng_tasks.review;
+  if (el('exec-stat-eng-done'))       el('exec-stat-eng-done').textContent       = s.eng_tasks.done;
 
-  div.addEventListener('click', () => openProductDetail(prod));
-  return div;
-}
+  // Generated at
+  if (el('exec-generated-at')) el('exec-generated-at').textContent = s.generated_at ? formatDate(s.generated_at) : '';
 
-function openProductDetail(prod) {
-  const statusColors = { active: 'proj-status-active', draft: 'proj-status-hold', archived: 'proj-status-done' };
-  const bodyHtml = `
-    <div class="slideover-meta">
-      <span class="project-status-badge ${statusColors[prod.status] || ''}">${escHtml(prod.status)}</span>
-      ${prod.low_stock ? '<span class="inv-low-badge">LOW STOCK</span>' : ''}
-    </div>
-    ${prod.cloudinary_url ? `
-      <div class="slideover-section">
-        <img src="${escHtml(prod.cloudinary_url)}" style="width:100%;border-radius:var(--radius);margin-bottom:8px" alt="${escHtml(prod.name)}" />
-      </div>
-    ` : ''}
-    ${prod.description ? `
-      <div class="slideover-section">
-        <div class="slideover-label">Description</div>
-        <div class="slideover-desc">${escHtml(prod.description)}</div>
-      </div>
-    ` : ''}
-    <div class="slideover-section">
-      <div class="slideover-label">Details</div>
-      <div class="slideover-desc">
-        ${prod.sku ? `SKU: ${escHtml(prod.sku)}\n` : ''}${prod.category ? `Category: ${escHtml(prod.category)}\n` : ''}${prod.price !== null ? `Price: $${Number(prod.price).toFixed(2)}\n` : ''}${prod.cost !== null ? `Cost: $${Number(prod.cost).toFixed(2)}\n` : ''}${prod.quantity !== null ? `In Stock: ${prod.quantity} units` : ''}
-      </div>
-    </div>
-    ${prod.cloudinary_public_id ? `
-      <div class="slideover-section">
-        <div class="slideover-label">Cloudinary Asset</div>
-        <div class="slideover-desc" style="font-family:var(--font-mono);font-size:11px">${escHtml(prod.cloudinary_public_id)}</div>
-      </div>
-    ` : ''}
-    <div class="slideover-times">
-      <span>Created: ${formatDate(prod.created_at)}</span>
-      <span>Updated: ${formatDate(prod.updated_at)}</span>
-      <span>ID: #${prod.id}</span>
-    </div>
-  `;
-  openSlideover(prod.name, bodyHtml);
-}
-
-/* ── Commerce: Inventory ── */
-function setInventoryFilter(filter) {
-  activeInventoryFilter = filter;
-  document.querySelectorAll('[data-inv-filter]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.invFilter === filter);
-  });
-  renderInventory();
-}
-
-window.setInventoryFilter = setInventoryFilter;
-
-function renderInventory() {
-  const wrap = document.getElementById('inventory-table-wrap');
-  if (!wrap) return;
-
-  let items = allInventory;
-  if (activeInventoryFilter === 'low_stock') {
-    items = items.filter(i => i.low_stock);
+  // Last deploy
+  if (el('exec-last-deploy')) {
+    el('exec-last-deploy').textContent = s.last_deploy ? formatDate(s.last_deploy) : 'Unknown';
   }
 
-  if (!items.length) {
-    wrap.innerHTML = '<div class="empty-state">// NO INVENTORY DATA //</div>';
-    return;
-  }
+  // Recent activity feed
+  const feed = document.getElementById('exec-activity-feed');
+  if (feed) {
+    if (!s.recent_activity || !s.recent_activity.length) {
+      feed.innerHTML = '<div class="empty-state">// NO RECENT ACTIVITY //</div>';
+    } else {
+      feed.innerHTML = '';
+      for (const agent of s.recent_activity) {
+        const live = isRecentlyActive(agent.last_active);
+        const item = document.createElement('div');
+        item.className = 'exec-activity-item';
+        applyAgentColorVars(item, agent.name);
 
-  const rows = items.map(item => {
-    const lowBadge = item.low_stock ? '<span class="inv-low-badge">LOW</span>' : '';
-    const outBadge = item.quantity === 0 ? '<span class="inv-out-badge">OUT</span>' : '';
-    const imgHtml = item.product_image
-      ? `<img src="${escHtml(item.product_image)}" class="inv-thumb" alt="${escHtml(item.product_name)}" onerror="this.style.display='none'"/>`
-      : '<div class="inv-thumb-placeholder">—</div>';
-    return `
-      <tr class="inv-row ${item.low_stock ? 'inv-row-low' : ''}">
-        <td class="inv-td inv-td-img">${imgHtml}</td>
-        <td class="inv-td">
-          <div class="inv-name">${escHtml(item.product_name)}</div>
-          ${item.product_sku ? `<div class="inv-sku">${escHtml(item.product_sku)}</div>` : ''}
-        </td>
-        <td class="inv-td">${item.product_category ? escHtml(item.product_category) : '—'}</td>
-        <td class="inv-td inv-td-qty">
-          <span class="inv-qty">${item.quantity}</span>
-          ${lowBadge}${outBadge}
-        </td>
-        <td class="inv-td">${item.reserved || 0}</td>
-        <td class="inv-td">${item.low_stock_threshold || 5}</td>
-        <td class="inv-td">${item.location ? escHtml(item.location) : '—'}</td>
-      </tr>
-    `;
-  }).join('');
+        const c = getAgentColor(agent.name);
+        const accent = c ? c.accent : 'var(--text-dim)';
 
-  wrap.innerHTML = `
-    <table class="inv-table">
-      <thead>
-        <tr>
-          <th class="inv-th"></th>
-          <th class="inv-th">Product</th>
-          <th class="inv-th">Category</th>
-          <th class="inv-th">In Stock</th>
-          <th class="inv-th">Reserved</th>
-          <th class="inv-th">Low At</th>
-          <th class="inv-th">Location</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
+        const avatarEl = buildAvatarEl(agent.name, 'exec-activity-avatar');
 
-/* ── Commerce: Revenue ── */
-function renderRevenue() {
-  const summary = revenueData.summary;
+        const bodyDiv = document.createElement('div');
+        bodyDiv.className = 'exec-activity-body';
+        bodyDiv.innerHTML = `
+          <div class="exec-activity-line">
+            <span class="exec-activity-name" style="color:${accent}">${escHtml(agent.name)}</span>
+            <span class="activity-dot ${live ? 'live' : ''}"></span>
+            <span class="exec-activity-time">${timeAgo(agent.last_active)}</span>
+          </div>
+          <div class="exec-activity-action">${escHtml(agent.current_activity || 'Standby')}</div>
+        `;
 
-  if (summary) {
-    const todayEl  = document.getElementById('stat-revenue-today');
-    const last30El = document.getElementById('stat-revenue-30d');
-    const ordersEl = document.getElementById('stat-revenue-orders');
-    const totalEl  = document.getElementById('stat-revenue-total');
-
-    if (todayEl)  todayEl.textContent  = summary.today ? `$${Number(summary.today.revenue).toFixed(0)}` : '$0';
-    if (last30El) last30El.textContent = `$${Number(summary.last_30_days.revenue).toFixed(0)}`;
-    if (ordersEl) ordersEl.textContent = summary.last_30_days.orders || 0;
-    if (totalEl)  totalEl.textContent  = `$${Number(summary.total.total_revenue).toFixed(0)}`;
-  }
-
-  const list = document.getElementById('revenue-list');
-  if (!list) return;
-
-  if (!revenueData.snapshots.length) {
-    list.innerHTML = '<div class="empty-state">// NO REVENUE SNAPSHOTS YET //\n// POST to /api/revenue to add data //</div>';
-    return;
-  }
-
-  list.innerHTML = '';
-  for (const snap of revenueData.snapshots) {
-    const div = document.createElement('div');
-    div.className = 'revenue-row';
-    div.innerHTML = `
-      <div class="revenue-date">${escHtml(snap.date)}</div>
-      <div class="revenue-amount">$${Number(snap.revenue).toFixed(2)}</div>
-      <div class="revenue-orders">${snap.orders} orders</div>
-      <div class="revenue-source">${escHtml(snap.source || 'manual')}</div>
-      ${snap.notes ? `<div class="revenue-notes">${escHtml(snap.notes)}</div>` : ''}
-    `;
-    list.appendChild(div);
+        item.appendChild(avatarEl);
+        item.appendChild(bodyDiv);
+        feed.appendChild(item);
+      }
+    }
   }
 }
 
@@ -1776,33 +1616,6 @@ function connectSSE() {
     if (idx !== -1) allDepts[idx] = dept;
   });
 
-  eventSource.addEventListener('product_update', (e) => {
-    const data = JSON.parse(e.data);
-    if (data.action === 'created') {
-      allProducts.unshift(data.product);
-    } else if (data.action === 'updated') {
-      const idx = allProducts.findIndex(p => p.id === data.product.id);
-      if (idx !== -1) allProducts[idx] = data.product;
-    } else if (data.action === 'deleted') {
-      allProducts = allProducts.filter(p => p.id !== parseInt(data.id));
-    }
-    if (activeSection === 'commerce-products') renderProducts();
-  });
-
-  eventSource.addEventListener('inventory_update', (e) => {
-    const data = JSON.parse(e.data);
-    const inv = data.inventory;
-    const idx = allInventory.findIndex(i => i.product_id === inv.product_id);
-    if (idx !== -1) allInventory[idx] = inv;
-    if (activeSection === 'commerce-inventory') renderInventory();
-  });
-
-  eventSource.addEventListener('revenue_update', (e) => {
-    const data = JSON.parse(e.data);
-    revenueData.snapshots.unshift(data.snapshot);
-    if (activeSection === 'commerce-revenue') renderRevenue();
-  });
-
   // Also reset on named events (agent_update, new_message, etc.)
   ['agent_update', 'new_message', 'task_update', 'eng_task_update', 'room_update', 'project_update', 'dept_update'].forEach(evtName => {
     // Heartbeat reset is handled by the onmessage + named event listeners above
@@ -1888,39 +1701,6 @@ async function loadProjects() {
   }
 }
 
-async function loadProducts() {
-  try {
-    const res = await authedFetch(PRODUCTS_API);
-    if (!res.ok) throw new Error('Failed to fetch products');
-    allProducts = await res.json();
-  } catch (err) {
-    console.error('Error loading products:', err);
-  }
-}
-
-async function loadInventory() {
-  try {
-    const res = await authedFetch(INVENTORY_API);
-    if (!res.ok) throw new Error('Failed to fetch inventory');
-    allInventory = await res.json();
-  } catch (err) {
-    console.error('Error loading inventory:', err);
-  }
-}
-
-async function loadRevenue() {
-  try {
-    const [snapsRes, summaryRes] = await Promise.all([
-      authedFetch(REVENUE_API),
-      authedFetch(`${REVENUE_API}/summary`)
-    ]);
-    if (snapsRes.ok) revenueData.snapshots = await snapsRes.json();
-    if (summaryRes.ok) revenueData.summary = await summaryRes.json();
-  } catch (err) {
-    console.error('Error loading revenue:', err);
-  }
-}
-
 async function loadAll() {
   // Skeletons go inside list containers only — never replace column structure
   const skCard = '<div class="skeleton-card"><div class="skeleton skeleton-line-lg skeleton-w-3-4"></div><div class="skeleton skeleton-line skeleton-w-full"></div><div class="skeleton skeleton-line-sm skeleton-w-1-2"></div></div>'.repeat(3);
@@ -1929,15 +1709,12 @@ async function loadAll() {
   const agentsGrid = document.getElementById('agents-grid');
   if (agentsGrid && !allAgents.length) agentsGrid.innerHTML = buildAgentsSkeleton();
 
-  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects(), loadProducts(), loadInventory(), loadRevenue()]);
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects()]);
   renderDashboard();
   renderBoard(filterTasks(allTasks, activeFilter));
   renderEngBoard();
   renderAgents();
   renderProjects();
-  renderProducts();
-  renderInventory();
-  renderRevenue();
 }
 
 /* ── Config load ── */
@@ -1962,14 +1739,12 @@ loadConfig().then(() => {
 
 // Periodic full refresh as fallback (every 2 min)
 setInterval(async () => {
-  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects(), loadProducts(), loadInventory(), loadRevenue()]);
-  if (activeSection === 'dashboard') renderDashboard();
-  if (activeSection === 'tasks') renderBoard(filterTasks(allTasks, activeFilter));
-  if (activeSection === 'agents') renderAgents();
-  if (activeSection === 'eng-tasks') renderEngBoard();
+  await Promise.all([loadTasks(), loadAgents(), loadRooms(), loadEngTasks(), loadDepts(), loadProjects()]);
+  if (activeSection === 'dashboard')   renderDashboard();
+  if (activeSection === 'tasks')       renderBoard(filterTasks(allTasks, activeFilter));
+  if (activeSection === 'agents')      renderAgents();
+  if (activeSection === 'eng-tasks')   renderEngBoard();
   if (activeSection === 'meeting' && !activeRoomId) renderRoomList();
-  if (activeSection === 'projects') renderProjects();
-  if (activeSection === 'commerce-products')  renderProducts();
-  if (activeSection === 'commerce-inventory') renderInventory();
-  if (activeSection === 'commerce-revenue')   renderRevenue();
+  if (activeSection === 'projects')    renderProjects();
+  if (activeSection === 'exec-summary') loadExecutiveSummary();
 }, 120000);
